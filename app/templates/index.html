@@ -176,10 +176,13 @@
         }
 
         // 显示自定义弹窗
-        function showMessage(message, isSuccess = true) {
+        function showMessage(message, isSuccess = true, isLoading = false) {
             // 创建弹窗元素
             var modal = document.createElement('div');
             modal.className = 'custom-modal ' + (isSuccess ? 'success' : 'error');
+            if (isLoading) {
+                modal.className += ' loading';
+            }
             
             var modalContent = document.createElement('div');
             modalContent.className = 'modal-content';
@@ -187,18 +190,29 @@
             var messageText = document.createElement('p');
             messageText.textContent = message;
             
-            var closeBtn = document.createElement('button');
-            closeBtn.className = 'btn';
-            closeBtn.textContent = '确定';
-            closeBtn.onclick = function() {
-                document.body.removeChild(modal);
-                window.location.reload(); // 关闭弹窗后刷新页面
-            };
-            
             modalContent.appendChild(messageText);
-            modalContent.appendChild(closeBtn);
+            
+            // 只有非加载状态才显示确定按钮
+            if (!isLoading) {
+                var closeBtn = document.createElement('button');
+                closeBtn.className = 'btn';
+                closeBtn.textContent = '确定';
+                closeBtn.onclick = function() {
+                    document.body.removeChild(modal);
+                    window.location.reload(); // 关闭弹窗后刷新页面
+                };
+                modalContent.appendChild(closeBtn);
+            } else {
+                // 添加加载指示器
+                var loader = document.createElement('div');
+                loader.className = 'loader';
+                modalContent.appendChild(loader);
+            }
+            
             modal.appendChild(modalContent);
             document.body.appendChild(modal);
+            
+            return modal; // 返回弹窗元素，方便后续操作
         }
 
         // 异步表单提交 - 测速
@@ -206,7 +220,7 @@
             e.preventDefault();
             
             // 显示加载中提示
-            showMessage('测速中，请稍候...', true);
+            var loadingModal = showMessage('测速中，请稍候...', true, true);
             
             fetch(this.action, {
                 method: 'POST',
@@ -217,16 +231,15 @@
             .then(response => response.json())
             .then(data => {
                 // 移除之前的弹窗
-                var existingModals = document.querySelectorAll('.custom-modal');
-                existingModals.forEach(function(modal) {
-                    document.body.removeChild(modal);
-                });
+                document.body.removeChild(loadingModal);
                 
                 // 显示结果弹窗
                 showMessage(data.message, data.success);
             })
             .catch(error => {
                 console.error('测速请求出错:', error);
+                // 移除之前的弹窗
+                document.body.removeChild(loadingModal);
                 showMessage('测速请求出错', false);
             });
         });
@@ -236,22 +249,30 @@
             e.preventDefault();
             
             // 显示加载中提示
-            showMessage('更新中，请稍候...', true);
+            var loadingModal = showMessage('更新中，请稍候...', true, true);
             
             fetch(this.action, {
                 method: 'POST'
             })
             .then(response => {
                 if (response.ok) {
-                    window.location.reload(); // 成功后刷新页面
+                    return response.json();
                 } else {
                     return response.text().then(text => {
                         throw new Error(text || '更新失败');
                     });
                 }
             })
+            .then(data => {
+                // 移除之前的弹窗
+                document.body.removeChild(loadingModal);
+                // 显示结果弹窗
+                showMessage(data.message, data.success);
+            })
             .catch(error => {
                 console.error('更新请求出错:', error);
+                // 移除之前的弹窗
+                document.body.removeChild(loadingModal);
                 showMessage(error.message || '更新请求出错', false);
             });
         });
@@ -308,6 +329,10 @@
             border-top: 4px solid #f44336;
         }
         
+        .loading .modal-content {
+            border-top: 4px solid #2196F3;
+        }
+        
         .modal-content p {
             margin: 0 0 20px 0;
             font-size: 16px;
@@ -315,6 +340,22 @@
         
         .modal-content .btn {
             min-width: 100px;
+        }
+        
+        /* 加载动画 */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2196F3;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </body>

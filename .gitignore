@@ -1,4 +1,6 @@
-/.env
-data/updater.log
+data/config.toml
 data/hosts
+data/hosts.bak*
 data/result.csv
+data/updater.log
+/.env

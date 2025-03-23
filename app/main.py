@@ -35,7 +35,7 @@ DEFAULT_CONFIG = {
     'UPDATE_INTERVAL': '12h',
     'TARGET_CONTAINERS': '',
     'CF_DOMAINS': '',
-    'IP_COUNT': 3,
+    'IP_COUNT': 1,
     'PREFERRED_IP': '',
     'SPEED_TEST_ARGS': '',
 }
@@ -45,69 +45,115 @@ HOSTS_MARKER = '# CloudflareIP-HostsUpdater'
 
 # 全局配置变量
 CONFIG = {}
+IS_FIRST_RUN = False  # 全局变量，记录是否为首次启动
 
-# 加载配置（优先从config.toml读取，然后从环境变量读取，最后使用默认值）
+# 加载配置（根据config.toml是否存在区分初次启动和非初次启动）
 def load_config():
-    global CONFIG
+    global CONFIG, IS_FIRST_RUN
+    
+    # 首先判断是否为初次启动（config.toml不存在）
+    is_first_run = not os.path.exists(CONFIG_TOML) or os.path.getsize(CONFIG_TOML) == 0
+    
+    # 设置全局变量记录是否是首次启动
+    IS_FIRST_RUN = is_first_run
     
     # 1. 首先加载默认配置
     config = DEFAULT_CONFIG.copy()
     
-    # 2. 尝试从环境变量加载配置
-    config['UPDATE_INTERVAL'] = os.environ.get('UPDATE_INTERVAL', config['UPDATE_INTERVAL'])
-    config['TARGET_CONTAINERS'] = os.environ.get('TARGET_CONTAINERS', config['TARGET_CONTAINERS'])
-    config['CF_DOMAINS'] = os.environ.get('CF_DOMAINS', config['CF_DOMAINS'])
-    config['IP_COUNT'] = int(os.environ.get('IP_COUNT', config['IP_COUNT']))
-    config['PREFERRED_IP'] = os.environ.get('PREFERRED_IP', config['PREFERRED_IP'])
-    config['SPEED_TEST_ARGS'] = os.environ.get('SPEED_TEST_ARGS', config['SPEED_TEST_ARGS'])
-    
-    # 3. 如果存在config.toml，则从其中加载配置（优先级最高）
-    if os.path.exists(CONFIG_TOML) and os.path.getsize(CONFIG_TOML) > 0:
+    if is_first_run:
+        logger.info("首次启动，使用默认配置并从环境变量覆盖")
+        
+        # 2. 尝试从环境变量加载配置（覆盖默认配置）
+        config['UPDATE_INTERVAL'] = os.environ.get('UPDATE_INTERVAL', config['UPDATE_INTERVAL'])
+        config['TARGET_CONTAINERS'] = os.environ.get('TARGET_CONTAINERS', config['TARGET_CONTAINERS'])
+        config['CF_DOMAINS'] = os.environ.get('CF_DOMAINS', config['CF_DOMAINS'])
+        config['IP_COUNT'] = int(os.environ.get('IP_COUNT', config['IP_COUNT']))
+        config['PREFERRED_IP'] = os.environ.get('PREFERRED_IP', config['PREFERRED_IP'])
+        config['SPEED_TEST_ARGS'] = os.environ.get('SPEED_TEST_ARGS', config['SPEED_TEST_ARGS'])
+        
+        # 处理字符串类型的容器和域名列表
+        if isinstance(config['TARGET_CONTAINERS'], str):
+            config['TARGET_CONTAINERS'] = [c.strip() for c in config['TARGET_CONTAINERS'].split(',') if c.strip()]
+        
+        if isinstance(config['CF_DOMAINS'], str):
+            config['CF_DOMAINS'] = [d.strip() for d in config['CF_DOMAINS'].split(',') if d.strip()]
+        
+        # 更新全局配置
+        CONFIG = config
+        
+        # 将初始配置保存到config.toml以便下次使用
+        save_initial_config(config)
+        
+        logger.info("首次启动配置加载完成并写入config.toml")
+    else:
+        logger.info("从config.toml加载配置")
+        
+        # 3. 如果存在config.toml，则从其中加载配置（优先级最高）
         try:
             toml_config = toml.load(CONFIG_TOML)
             if 'general' in toml_config:
                 for key, value in toml_config['general'].items():
                     if key.upper() in config:
-                        config[key.upper()] = value
+                        # 只有当值不为空时才覆盖默认配置
+                        if value != "" and value is not None:
+                            config[key.upper()] = value
+            
+            # 如果config.toml中的某些值为空，尝试从环境变量加载
+            for key in config:
+                if not config[key] and key in os.environ:
+                    if key == 'IP_COUNT':
+                        config[key] = int(os.environ[key])
+                    else:
+                        config[key] = os.environ[key]
+            
             logger.info(f"从 {CONFIG_TOML} 加载了配置")
         except Exception as e:
             logger.error(f"加载 {CONFIG_TOML} 失败: {str(e)}")
-    
-    # 处理字符串类型的容器和域名列表
-    if isinstance(config['TARGET_CONTAINERS'], str):
-        config['TARGET_CONTAINERS'] = [c.strip() for c in config['TARGET_CONTAINERS'].split(',') if c.strip()]
-    
-    if isinstance(config['CF_DOMAINS'], str):
-        config['CF_DOMAINS'] = [d.strip() for d in config['CF_DOMAINS'].split(',') if d.strip()]
-    
-    # 更新全局配置
-    CONFIG = config
+            # 加载失败时，尝试从环境变量回退
+            logger.info("尝试从环境变量加载配置")
+            config['UPDATE_INTERVAL'] = os.environ.get('UPDATE_INTERVAL', config['UPDATE_INTERVAL'])
+            config['TARGET_CONTAINERS'] = os.environ.get('TARGET_CONTAINERS', config['TARGET_CONTAINERS'])
+            config['CF_DOMAINS'] = os.environ.get('CF_DOMAINS', config['CF_DOMAINS'])
+            config['IP_COUNT'] = int(os.environ.get('IP_COUNT', config['IP_COUNT']))
+            config['PREFERRED_IP'] = os.environ.get('PREFERRED_IP', config['PREFERRED_IP'])
+            config['SPEED_TEST_ARGS'] = os.environ.get('SPEED_TEST_ARGS', config['SPEED_TEST_ARGS'])
+        
+        # 处理字符串类型的容器和域名列表
+        if isinstance(config['TARGET_CONTAINERS'], str):
+            config['TARGET_CONTAINERS'] = [c.strip() for c in config['TARGET_CONTAINERS'].split(',') if c.strip()]
+        
+        if isinstance(config['CF_DOMAINS'], str):
+            config['CF_DOMAINS'] = [d.strip() for d in config['CF_DOMAINS'].split(',') if d.strip()]
+        
+        # 更新全局配置
+        CONFIG = config
     
     logger.info("配置加载完成")
     return config
 
-# 保存配置到config.toml
-def save_config(config):
+# 保存初始配置到config.toml（仅首次启动时调用）
+def save_initial_config(config):
     try:
         # 确保数据目录存在
         os.makedirs(os.path.dirname(CONFIG_TOML), exist_ok=True)
         
         # 将列表转换为逗号分隔的字符串
-        if isinstance(config['TARGET_CONTAINERS'], list):
-            config['TARGET_CONTAINERS'] = ','.join(config['TARGET_CONTAINERS'])
+        config_to_save = config.copy()
+        if isinstance(config_to_save['TARGET_CONTAINERS'], list):
+            config_to_save['TARGET_CONTAINERS'] = ','.join(config_to_save['TARGET_CONTAINERS'])
         
-        if isinstance(config['CF_DOMAINS'], list):
-            config['CF_DOMAINS'] = ','.join(config['CF_DOMAINS'])
+        if isinstance(config_to_save['CF_DOMAINS'], list):
+            config_to_save['CF_DOMAINS'] = ','.join(config_to_save['CF_DOMAINS'])
         
         # 准备TOML格式数据
         toml_data = {
             'general': {
-                'update_interval': config['UPDATE_INTERVAL'],
-                'target_containers': config['TARGET_CONTAINERS'],
-                'cf_domains': config['CF_DOMAINS'],
-                'ip_count': int(config['IP_COUNT']),
-                'preferred_ip': config['PREFERRED_IP'],
-                'speed_test_args': config['SPEED_TEST_ARGS'],
+                'update_interval': config_to_save['UPDATE_INTERVAL'],
+                'target_containers': config_to_save['TARGET_CONTAINERS'],
+                'cf_domains': config_to_save['CF_DOMAINS'],
+                'ip_count': int(config_to_save['IP_COUNT']),
+                'preferred_ip': config_to_save['PREFERRED_IP'],
+                'speed_test_args': config_to_save['SPEED_TEST_ARGS'],
             }
         }
         
@@ -115,9 +161,47 @@ def save_config(config):
         with open(CONFIG_TOML, 'w') as f:
             toml.dump(toml_data, f)
         
-        logger.info(f"配置已保存到 {CONFIG_TOML}")
+        logger.info(f"初始配置已保存到 {CONFIG_TOML}")
+        return True
+    except Exception as e:
+        logger.error(f"保存初始配置失败: {str(e)}")
+        return False
+
+# 保存配置到config.toml（由用户操作触发）
+def save_config(config):
+    try:
+        # 确保数据目录存在
+        os.makedirs(os.path.dirname(CONFIG_TOML), exist_ok=True)
         
-        # 重新加载配置
+        # 复制一份配置以避免修改原始对象
+        config_to_save = config.copy()
+        
+        # 将列表转换为逗号分隔的字符串
+        if isinstance(config_to_save['TARGET_CONTAINERS'], list):
+            config_to_save['TARGET_CONTAINERS'] = ','.join(config_to_save['TARGET_CONTAINERS'])
+        
+        if isinstance(config_to_save['CF_DOMAINS'], list):
+            config_to_save['CF_DOMAINS'] = ','.join(config_to_save['CF_DOMAINS'])
+        
+        # 准备TOML格式数据
+        toml_data = {
+            'general': {
+                'update_interval': config_to_save['UPDATE_INTERVAL'],
+                'target_containers': config_to_save['TARGET_CONTAINERS'],
+                'cf_domains': config_to_save['CF_DOMAINS'],
+                'ip_count': int(config_to_save['IP_COUNT']),
+                'preferred_ip': config_to_save['PREFERRED_IP'],
+                'speed_test_args': config_to_save['SPEED_TEST_ARGS'],
+            }
+        }
+        
+        # 写入TOML文件
+        with open(CONFIG_TOML, 'w') as f:
+            toml.dump(toml_data, f)
+        
+        logger.info(f"用户配置已保存到 {CONFIG_TOML}")
+        
+        # 重新加载配置以确保全局变量更新
         load_config()
         
         return True
@@ -169,18 +253,32 @@ def run_cloudflare_speedtest():
         return True
         
     logger.info("开始运行CloudflareSpeedTest...")
+    start_time = time.time()
     
     try:
         cmd = ['/app/CloudflareST', '-o', SPEEDTEST_RESULT]
         if SPEED_TEST_ARGS:
+            logger.info(f"使用自定义测速参数: {SPEED_TEST_ARGS}")
             cmd.extend(SPEED_TEST_ARGS.split())
         
+        logger.info(f"执行命令: {' '.join(cmd)}")
         process = subprocess.run(cmd, capture_output=True, text=True)
+        
+        elapsed_time = time.time() - start_time
+        
         if process.returncode != 0:
             logger.error(f"CloudflareSpeedTest运行失败: {process.stderr}")
             return False
         
-        logger.info("CloudflareSpeedTest运行完成")
+        logger.info(f"CloudflareSpeedTest运行完成，耗时: {elapsed_time:.2f}秒")
+        
+        # 检查结果文件是否存在
+        if os.path.exists(SPEEDTEST_RESULT):
+            file_size = os.path.getsize(SPEEDTEST_RESULT)
+            logger.info(f"测速结果文件大小: {file_size}字节")
+        else:
+            logger.warning("测速完成但未找到结果文件")
+            
         return True
     except Exception as e:
         logger.error(f"运行CloudflareSpeedTest时出错: {str(e)}")
@@ -198,6 +296,7 @@ def parse_speedtest_results():
     """解析CloudflareSpeedTest结果"""
     # 如果设置了首选IP，则直接返回首选IP
     if PREFERRED_IP:
+        logger.info(f"使用预设首选IP: {PREFERRED_IP} (跳过结果解析)")
         return get_preferred_ip_results()
         
     if not os.path.exists(SPEEDTEST_RESULT):
@@ -205,27 +304,52 @@ def parse_speedtest_results():
         return []
     
     try:
+        logger.info(f"开始解析测速结果文件: {SPEEDTEST_RESULT}")
+        
         # 读取CSV结果文件
         with open(SPEEDTEST_RESULT, 'r') as f:
             lines = f.readlines()
         
+        logger.info(f"结果文件包含 {len(lines)} 行数据")
+        
         if len(lines) <= 1:  # 只有标题行或者空文件
-            logger.warning("测速结果为空")
+            logger.warning("测速结果为空，仅包含标题行或文件为空")
             return []
         
         # 解析CSV（简单实现，可以使用csv模块增强）
         header = lines[0].strip().split(',')
-        ip_index = header.index('IP 地址')
-        speed_index = header.index('平均延迟')
+        logger.debug(f"CSV标题: {header}")
+        
+        try:
+            ip_index = header.index('IP 地址')
+            speed_index = header.index('平均延迟')
+        except ValueError as e:
+            logger.error(f"CSV格式错误，未找到必要的列: {str(e)}")
+            return []
+        
+        # 获取IP数量配置
+        logger.info(f"当前配置的IP数量上限: {IP_COUNT}")
+        max_ips = min(len(lines) - 1, IP_COUNT)  # 确保不会超过文件中的实际IP数量
         
         results = []
-        for i in range(1, min(len(lines), IP_COUNT + 1)):
+        for i in range(1, max_ips + 1):
             fields = lines[i].strip().split(',')
             if len(fields) > max(ip_index, speed_index):
+                ip = fields[ip_index]
+                speed = fields[speed_index]
                 results.append({
-                    'ip': fields[ip_index],
-                    'speed': fields[speed_index],
+                    'ip': ip,
+                    'speed': speed,
                 })
+                logger.debug(f"添加IP: {ip}, 速度: {speed}ms")
+        
+        logger.info(f"成功解析 {len(results)}/{max_ips} 个IP地址")
+        
+        if len(results) > 0:
+            # 记录最快的IP和延迟
+            fastest_ip = results[0]['ip']
+            fastest_speed = results[0]['speed']
+            logger.info(f"最优IP: {fastest_ip}, 延迟: {fastest_speed}ms")
         
         return results
     except Exception as e:
@@ -295,10 +419,41 @@ def generate_hosts_content(ip_list, domains=None):
 def save_hosts_file(content):
     """保存hosts文件"""
     try:
+        logger.info(f"准备保存hosts文件到: {HOSTS_FILE}")
+        
+        # 先备份现有hosts文件（如果存在）
+        if os.path.exists(HOSTS_FILE):
+            backup_path = f"{HOSTS_FILE}.bak.{int(time.time())}"
+            try:
+                import shutil
+                shutil.copy2(HOSTS_FILE, backup_path)
+                logger.info(f"已备份原hosts文件到: {backup_path}")
+            except Exception as backup_err:
+                logger.warning(f"备份hosts文件失败: {str(backup_err)}")
+        
+        # 保存新的hosts文件
         with open(HOSTS_FILE, 'w') as f:
             f.write(content)
-        logger.info(f"hosts文件已保存至 {HOSTS_FILE}")
-        return True
+            
+        # 验证文件写入
+        if os.path.exists(HOSTS_FILE):
+            file_size = os.path.getsize(HOSTS_FILE)
+            logger.info(f"hosts文件已保存，大小: {file_size}字节")
+            
+            # 计算hosts条目数
+            entry_count = 0
+            comment_count = 0
+            for line in content.splitlines():
+                if line.strip() and not line.strip().startswith('#'):
+                    entry_count += 1
+                elif line.strip().startswith('#'):
+                    comment_count += 1
+                    
+            logger.info(f"hosts文件包含 {entry_count} 个有效条目, {comment_count} 行注释")
+            return True
+        else:
+            logger.error("保存后未找到hosts文件，可能写入失败")
+            return False
     except Exception as e:
         logger.error(f"保存hosts文件失败: {str(e)}")
         return False
@@ -383,43 +538,95 @@ def update_container_hosts(container_name, hosts_content):
 
 def update_all_hosts():
     """更新所有目标容器的hosts文件"""
-    # 重新加载配置以确保使用最新配置
+    # 重新加载配置以确保使用最新配置（添加日志和时间检查以避免频繁加载）
     global TARGET_CONTAINERS, CF_DOMAINS, IP_COUNT, PREFERRED_IP, SPEED_TEST_ARGS
-    config = load_config()
-    TARGET_CONTAINERS = config['TARGET_CONTAINERS']
-    CF_DOMAINS = config['CF_DOMAINS']
-    IP_COUNT = config['IP_COUNT']
-    PREFERRED_IP = config['PREFERRED_IP']
-    SPEED_TEST_ARGS = config['SPEED_TEST_ARGS']
     
+    # 获取当前时间作为时间戳
+    current_time = time.time()
+    
+    # 如果配置文件存在，并且自上次加载后可能已被修改，才重新加载
+    reload_config = False
+    if os.path.exists(CONFIG_TOML):
+        try:
+            # 获取配置文件的最后修改时间
+            config_mtime = os.path.getmtime(CONFIG_TOML)
+            
+            # 如果配置文件的修改时间比上次加载时间晚，则重新加载
+            if not hasattr(update_all_hosts, 'last_config_load') or config_mtime > update_all_hosts.last_config_load:
+                reload_config = True
+                logger.info("检测到配置文件已更新，重新加载配置")
+        except Exception as e:
+            logger.warning(f"检查配置文件修改时间出错: {str(e)}，将重新加载配置")
+            reload_config = True
+    
+    if reload_config:
+        config = load_config()
+        TARGET_CONTAINERS = config['TARGET_CONTAINERS']
+        CF_DOMAINS = config['CF_DOMAINS']
+        IP_COUNT = config['IP_COUNT']
+        PREFERRED_IP = config['PREFERRED_IP']
+        SPEED_TEST_ARGS = config['SPEED_TEST_ARGS']
+        
+        # 更新最后加载时间
+        update_all_hosts.last_config_load = current_time
+    
+    # 执行测速
+    logger.info("开始执行IP优选流程")
     successful = run_cloudflare_speedtest()
     if not successful:
         logger.error("测速失败，跳过更新hosts")
         return
     
+    # 解析结果
+    logger.info("解析测速结果")
     ip_list = parse_speedtest_results()
     if not ip_list:
         logger.error("没有获取到有效IP，跳过更新hosts")
         return
     
+    logger.info(f"获取到 {len(ip_list)} 个优选IP")
+    
     # 显式传递最新的CF_DOMAINS到generate_hosts_content函数
+    logger.info("开始生成hosts文件内容")
     hosts_content = generate_hosts_content(ip_list, domains=CF_DOMAINS)
     if not hosts_content:
         logger.error("生成hosts内容失败，跳过更新")
         return
     
-    save_hosts_file(hosts_content)
+    # 保存hosts文件
+    logger.info("保存hosts文件")
+    save_result = save_hosts_file(hosts_content)
+    if not save_result:
+        logger.error("保存hosts文件失败")
+        return
     
-    for container in TARGET_CONTAINERS:
-        if container:
-            update_container_hosts(container, hosts_content)
+    # 更新容器hosts
+    if TARGET_CONTAINERS:
+        logger.info(f"开始更新 {len(TARGET_CONTAINERS)} 个容器的hosts文件")
+        success_count = 0
+        for container in TARGET_CONTAINERS:
+            if container:
+                if update_container_hosts(container, hosts_content):
+                    success_count += 1
+        
+        logger.info(f"容器hosts更新完成: {success_count}/{len(TARGET_CONTAINERS)} 个成功")
+    else:
+        logger.info("未配置目标容器，跳过容器hosts更新")
+    
+    logger.info("IP优选和hosts更新流程完成")
 
 def main():
     """主函数"""
     logger.info("CloudflareIP-Hosts更新器启动")
     
-    # 初次运行
-    logger.info("初次运行更新")
+    # 使用load_config中已经确定的首次启动状态
+    if IS_FIRST_RUN:
+        logger.info("检测到初次启动，使用默认设置和环境变量初始化配置")
+    else:
+        logger.info("检测到非初次启动，使用现有配置文件")
+    
+    # 启动后的第一次更新
+    logger.info("执行启动后的首次计划更新")
     update_all_hosts()
     
     # 解析更新间隔并设置定时任务

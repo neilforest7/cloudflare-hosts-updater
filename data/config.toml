@@ -1,7 +1,0 @@
-[general]
-update_interval = "2h"
-target_containers = "nginx-test,redis-test"
-cf_domains = "tracker.qingwapt.com,tracker.qingwa.pro,tracker.qingwapt.org,tracker.ptcafe.club,hdfans.org,rousi.zip,announce.haidan.video,t.audiences.me,t.ubits.club,ourbits.club,announce.ilolicon.com,ptchina.org,tracker.pterclub.com"
-ip_count = 1
-preferred_ip = ""
-speed_test_args = ""

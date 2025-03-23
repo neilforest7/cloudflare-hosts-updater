@@ -10,16 +10,19 @@ RUN apk add --no-cache \
     unzip \
     docker-cli \
     && pip install --no-cache-dir \
-    schedule==1.1.0
+    schedule==1.1.0 \
+    werkzeug==2.0.1 \
+    flask==2.0.1 \
+    toml==0.10.2
 
 # 创建工作目录
 WORKDIR /app
 
 # 下载CloudflareSpeedTest
-RUN wget -O /tmp/CloudflareST.zip https://github.com/XIU2/CloudflareSpeedTest/releases/latest/download/CloudflareST_linux_amd64.tar.gz \
-    && unzip -d /app /tmp/CloudflareST.zip \
+RUN wget -O /tmp/CloudflareST.tar.gz https://github.com/XIU2/CloudflareSpeedTest/releases/latest/download/CloudflareST_linux_amd64.tar.gz \
+    && tar -xzf /tmp/CloudflareST.tar.gz -C /app \
     && chmod +x /app/CloudflareST \
-    && rm /tmp/CloudflareST.zip
+    && rm /tmp/CloudflareST.tar.gz
 
 # 复制应用代码
 COPY ./app /app

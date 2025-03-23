@@ -1,1 +1,4 @@
 /.env
+data/updater.log
+data/hosts
+data/result.csv

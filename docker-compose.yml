@@ -8,11 +8,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./data:/app/data
-    environment:
-      - UPDATE_INTERVAL=6h                    # 更新间隔
-      - TARGET_CONTAINERS=container1,container2  # 目标容器名称，使用逗号分隔
-      - CF_DOMAINS=tracker.qingwapt.com,tracker.qingwa.pro,tracker.qingwapt.org,tracker.ptcafe.club,hdfans.org,rousi.zip,announce.haidan.video,t.audiences.me,t.ubits.club,ourbits.club,announce.ilolicon.com,ptchina.org,tracker.pterclub.com   # 要更新的域名列表
-      - PREFERRED_IP=104.18.182.64            # 预设首选IP，如果设置则跳过测速
-      - IP_COUNT=3                            # 每个域名选择的IP数量
-      - SPEED_TEST_ARGS=                      # CloudflareSpeedTest额外参数
-      - HOSTS_MARKER=# CloudflareIP-Hosts更新器   # hosts文件中的标记 
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env

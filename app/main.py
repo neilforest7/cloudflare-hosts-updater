@@ -12,6 +12,7 @@ import time
 import logging
 import subprocess
 import schedule
+import toml
 from datetime import datetime
 
 # 配置日志
@@ -25,14 +26,115 @@ logging.basicConfig(
 )
 logger = logging.getLogger('cloudflare-hosts-updater')
 
-# 从环境变量读取配置
-UPDATE_INTERVAL = os.environ.get('UPDATE_INTERVAL', '12h')
-TARGET_CONTAINERS = os.environ.get('TARGET_CONTAINERS', '').split(',')
-CF_DOMAINS = os.environ.get('CF_DOMAINS', '').split(',')
-IP_COUNT = int(os.environ.get('IP_COUNT', '3'))
-SPEED_TEST_ARGS = os.environ.get('SPEED_TEST_ARGS', '')
-HOSTS_MARKER = os.environ.get('HOSTS_MARKER', '# CloudflareIP-Hosts更新器')
-PREFERRED_IP = os.environ.get('PREFERRED_IP', '')
+# 配置文件路径
+CONFIG_TOML = '/app/data/config.toml'
+ENV_FILE = './.env'
+
+# 默认配置
+DEFAULT_CONFIG = {
+    'UPDATE_INTERVAL': '12h',
+    'TARGET_CONTAINERS': '',
+    'CF_DOMAINS': '',
+    'IP_COUNT': 3,
+    'PREFERRED_IP': '',
+    'SPEED_TEST_ARGS': '',
+}
+
+# 硬编码的标记，不允许用户修改
+HOSTS_MARKER = '# CloudflareIP-HostsUpdater'
+
+# 全局配置变量
+CONFIG = {}
+
+# 加载配置（优先从config.toml读取，然后从环境变量读取，最后使用默认值）
+def load_config():
+    global CONFIG
+    
+    # 1. 首先加载默认配置
+    config = DEFAULT_CONFIG.copy()
+    
+    # 2. 尝试从环境变量加载配置
+    config['UPDATE_INTERVAL'] = os.environ.get('UPDATE_INTERVAL', config['UPDATE_INTERVAL'])
+    config['TARGET_CONTAINERS'] = os.environ.get('TARGET_CONTAINERS', config['TARGET_CONTAINERS'])
+    config['CF_DOMAINS'] = os.environ.get('CF_DOMAINS', config['CF_DOMAINS'])
+    config['IP_COUNT'] = int(os.environ.get('IP_COUNT', config['IP_COUNT']))
+    config['PREFERRED_IP'] = os.environ.get('PREFERRED_IP', config['PREFERRED_IP'])
+    config['SPEED_TEST_ARGS'] = os.environ.get('SPEED_TEST_ARGS', config['SPEED_TEST_ARGS'])
+    
+    # 3. 如果存在config.toml，则从其中加载配置（优先级最高）
+    if os.path.exists(CONFIG_TOML) and os.path.getsize(CONFIG_TOML) > 0:
+        try:
+            toml_config = toml.load(CONFIG_TOML)
+            if 'general' in toml_config:
+                for key, value in toml_config['general'].items():
+                    if key.upper() in config:
+                        config[key.upper()] = value
+            logger.info(f"从 {CONFIG_TOML} 加载了配置")
+        except Exception as e:
+            logger.error(f"加载 {CONFIG_TOML} 失败: {str(e)}")
+    
+    # 处理字符串类型的容器和域名列表
+    if isinstance(config['TARGET_CONTAINERS'], str):
+        config['TARGET_CONTAINERS'] = [c.strip() for c in config['TARGET_CONTAINERS'].split(',') if c.strip()]
+    
+    if isinstance(config['CF_DOMAINS'], str):
+        config['CF_DOMAINS'] = [d.strip() for d in config['CF_DOMAINS'].split(',') if d.strip()]
+    
+    # 更新全局配置
+    CONFIG = config
+    
+    logger.info("配置加载完成")
+    return config
+
+# 保存配置到config.toml
+def save_config(config):
+    try:
+        # 确保数据目录存在
+        os.makedirs(os.path.dirname(CONFIG_TOML), exist_ok=True)
+        
+        # 将列表转换为逗号分隔的字符串
+        if isinstance(config['TARGET_CONTAINERS'], list):
+            config['TARGET_CONTAINERS'] = ','.join(config['TARGET_CONTAINERS'])
+        
+        if isinstance(config['CF_DOMAINS'], list):
+            config['CF_DOMAINS'] = ','.join(config['CF_DOMAINS'])
+        
+        # 准备TOML格式数据
+        toml_data = {
+            'general': {
+                'update_interval': config['UPDATE_INTERVAL'],
+                'target_containers': config['TARGET_CONTAINERS'],
+                'cf_domains': config['CF_DOMAINS'],
+                'ip_count': int(config['IP_COUNT']),
+                'preferred_ip': config['PREFERRED_IP'],
+                'speed_test_args': config['SPEED_TEST_ARGS'],
+            }
+        }
+        
+        # 写入TOML文件
+        with open(CONFIG_TOML, 'w') as f:
+            toml.dump(toml_data, f)
+        
+        logger.info(f"配置已保存到 {CONFIG_TOML}")
+        
+        # 重新加载配置
+        load_config()
+        
+        return True
+    except Exception as e:
+        logger.error(f"保存配置失败: {str(e)}")
+        return False
+
+# 初始加载配置
+CONFIG = load_config()
+
+# 从全局配置中获取变量
+UPDATE_INTERVAL = CONFIG['UPDATE_INTERVAL']
+TARGET_CONTAINERS = CONFIG['TARGET_CONTAINERS']
+CF_DOMAINS = CONFIG['CF_DOMAINS']
+IP_COUNT = CONFIG['IP_COUNT']
+PREFERRED_IP = CONFIG['PREFERRED_IP']
+SPEED_TEST_ARGS = CONFIG['SPEED_TEST_ARGS']
 
 # 文件路径
 SPEEDTEST_RESULT = '/app/data/result.csv'
@@ -113,7 +215,7 @@ def parse_speedtest_results():
         
         # 解析CSV（简单实现，可以使用csv模块增强）
         header = lines[0].strip().split(',')
-        ip_index = header.index('IP')
+        ip_index = header.index('IP 地址')
         speed_index = header.index('平均延迟')
         
         results = []
@@ -130,8 +232,13 @@ def parse_speedtest_results():
         logger.error(f"解析结果时出错: {str(e)}")
         return []
 
-def generate_hosts_content(ip_list):
-    """生成hosts文件内容"""
+def generate_hosts_content(ip_list, domains=None):
+    """生成hosts文件内容
+    
+    Args:
+        ip_list: IP地址列表
+        domains: 可选的域名列表，如果提供则优先使用，否则使用全局CF_DOMAINS
+    """
     if not ip_list:
         logger.error("无可用IP")
         return ""
@@ -146,8 +253,31 @@ def generate_hosts_content(ip_list):
             if template_content:
                 template_line = template_content
     
+    # 确定使用哪个域名列表
+    domain_list = domains if domains is not None else CF_DOMAINS
+    
+    # 处理可能存在换行符的域名列表
+    processed_domains = []
+    for domain_entry in domain_list:
+        if not domain_entry:
+            continue
+            
+        # 处理域名字符串中的各种换行符（\r\n 和 \n）
+        # 注意：config.toml中存储的域名可能包含\r\n或\n分隔符
+        if '\r\n' in domain_entry or '\n' in domain_entry or ',' in domain_entry:
+            # 首先按\r\n分割
+            lines = domain_entry.replace('\r\n', '\n').split('\n')
+            for line in lines:
+                # 然后处理可能的逗号分隔
+                domains = [d.strip() for d in line.split(',') if d.strip()]
+                processed_domains.extend(domains)
+        else:
+            processed_domains.append(domain_entry.strip())
+    
+    logger.info(f"处理后的域名列表: {processed_domains}")
+    
     # 为每个域名生成hosts条目
-    for domain in CF_DOMAINS:
+    for domain in processed_domains:
         if not domain:
             continue
         
@@ -189,13 +319,54 @@ def update_container_hosts(container_name, hosts_content):
         backup_cmd = f"docker exec {container_name} sh -c 'cp /etc/hosts /etc/hosts.bak'"
         subprocess.run(backup_cmd, shell=True, check=True)
         
-        # 检查原hosts文件中是否已有标记行，如果有则删除这些行之间的内容
+        # 使用更可靠的方法更新hosts文件
+        # 完全重写hosts文件，保持我们的Cloudflare IP在顶部，系统原始条目在底部
+        
+        # 使用硬编码标记，确保一致性
+        escaped_marker = HOSTS_MARKER.replace('/', '\\/').replace('&', '\\&').replace('.', '\\.').replace('*', '\\*')
+        
         update_cmd = f"""
         docker exec {container_name} sh -c "
-        grep -v -F '{HOSTS_MARKER}' /etc/hosts > /tmp/hosts.new && 
-        echo '{hosts_content}' >> /tmp/hosts.new && 
-        cat /tmp/hosts.new > /etc/hosts && 
-        rm /tmp/hosts.new
+        # 完全重写hosts文件的更可靠方法
+        
+        # 1. 备份原hosts文件（再次确保备份）
+        cp /etc/hosts /etc/hosts.bak.$(date +%s)
+        
+        # 2. 提取系统默认hosts（过滤掉所有我们添加的标记行及其间的内容）
+        # 使用awk进行精确过滤：不输出带有我们标记的行以及标记之间的所有行
+        awk '
+          BEGIN {{ in_section = 0; }}
+          /^[ \\t]*{escaped_marker}/ {{ in_section = 1; next; }}
+          /^[ \\t]*{escaped_marker} - 结束/ {{ in_section = 0; next; }}
+          !in_section {{ print; }}
+        ' /etc/hosts > /tmp/system_hosts.tmp
+        
+        # 3. 从系统hosts中进一步过滤：只过滤空行，保留系统注释
+        grep -v '^$' /tmp/system_hosts.tmp > /tmp/system_hosts
+        
+        # 4. 如果系统hosts为空，则使用基本localhost配置
+        if [ ! -s /tmp/system_hosts ]; then
+            echo '127.0.0.1\tlocalhost' > /tmp/system_hosts
+            echo '::1\tlocalhost ip6-localhost ip6-loopback' >> /tmp/system_hosts
+            echo 'fe00::0\tip6-localnet' >> /tmp/system_hosts
+            echo 'ff00::0\tip6-mcastprefix' >> /tmp/system_hosts
+            echo 'ff02::1\tip6-allnodes' >> /tmp/system_hosts
+            echo 'ff02::2\tip6-allrouters' >> /tmp/system_hosts
+        fi
+        
+        # 5. 创建新的hosts文件：我们的内容 + 系统默认内容
+        echo '{hosts_content}' > /tmp/hosts.new
+        echo '' >> /tmp/hosts.new  # 添加空行分隔
+        cat /tmp/system_hosts >> /tmp/hosts.new
+        cat /tmp/hosts.new > /etc/hosts
+        
+        # 6. 清理临时文件
+        rm -f /tmp/hosts.new /tmp/system_hosts /tmp/system_hosts.tmp
+        
+        # 7. 显示更新后的hosts文件内容（用于调试）
+        echo '=== 更新后的hosts文件内容 ==='
+        cat /etc/hosts
+        echo '=== hosts文件内容结束 ==='
         "
         """
         process = subprocess.run(update_cmd, shell=True, capture_output=True, text=True)
@@ -212,6 +383,15 @@ def update_container_hosts(container_name, hosts_content):
 
 def update_all_hosts():
     """更新所有目标容器的hosts文件"""
+    # 重新加载配置以确保使用最新配置
+    global TARGET_CONTAINERS, CF_DOMAINS, IP_COUNT, PREFERRED_IP, SPEED_TEST_ARGS
+    config = load_config()
+    TARGET_CONTAINERS = config['TARGET_CONTAINERS']
+    CF_DOMAINS = config['CF_DOMAINS']
+    IP_COUNT = config['IP_COUNT']
+    PREFERRED_IP = config['PREFERRED_IP']
+    SPEED_TEST_ARGS = config['SPEED_TEST_ARGS']
+    
     successful = run_cloudflare_speedtest()
     if not successful:
         logger.error("测速失败，跳过更新hosts")
@@ -222,7 +402,8 @@ def update_all_hosts():
         logger.error("没有获取到有效IP，跳过更新hosts")
         return
     
-    hosts_content = generate_hosts_content(ip_list)
+    # 显式传递最新的CF_DOMAINS到generate_hosts_content函数
+    hosts_content = generate_hosts_content(ip_list, domains=CF_DOMAINS)
     if not hosts_content:
         logger.error("生成hosts内容失败，跳过更新")
         return
@@ -261,4 +442,15 @@ def main():
         logger.info("CloudflareIP-Hosts更新器已停止")
 
 if __name__ == "__main__":
+    # 启动Web服务（在新线程中运行）
+    import threading
+    from web import start_web_server
+    
+    # 创建并启动Web服务器线程
+    web_thread = threading.Thread(target=start_web_server)
+    web_thread.daemon = True  # 设置为守护线程，主程序退出时自动退出
+    web_thread.start()
+    logger.info("Web服务已启动")
+    
+    # 启动主程序
     main() 

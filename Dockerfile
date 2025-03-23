@@ -16,7 +16,7 @@ RUN apk add --no-cache \
 WORKDIR /app
 
 # 下载CloudflareSpeedTest
-RUN wget -O /tmp/CloudflareST.zip https://github.com/XIU2/CloudflareSpeedTest/releases/latest/download/CloudflareST_linux_amd64.zip \
+RUN wget -O /tmp/CloudflareST.zip https://github.com/XIU2/CloudflareSpeedTest/releases/latest/download/CloudflareST_linux_amd64.tar.gz \
     && unzip -d /app /tmp/CloudflareST.zip \
     && chmod +x /app/CloudflareST \
     && rm /tmp/CloudflareST.zip

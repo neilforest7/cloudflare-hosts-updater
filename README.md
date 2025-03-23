@@ -5,12 +5,34 @@
 ## 功能概览
 
 - 自动测试并选择最佳的Cloudflare IP地址
-- 更新指定Docker容器的hosts文件
+- 更新指定Docker容器的hosts文件（目标容器需要与此容器位于同一docker环境）
 - 支持预设IP，无需测速
 - 支持Web界面实时配置
 - 可自定义更新间隔和域名列表
 
 ## 快速开始
+
+### 配置文件准备
+
+首先，复制示例配置文件并根据需要修改：
+
+```bash
+# 复制示例配置文件
+cp .env.example .env
+
+# 编辑配置文件
+nano .env  # 或使用您喜欢的编辑器
+```
+
+`.env`文件内容示例：
+```
+UPDATE_INTERVAL=12h
+TARGET_CONTAINERS=container1,container2
+CF_DOMAINS=example.com,example.org
+IP_COUNT=1
+PREFERRED_IP=
+SPEED_TEST_ARGS=
+```
 
 ### Docker部署
 
@@ -20,11 +42,8 @@ docker run -d \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v $(pwd)/data:/app/data \
   -p 8080:8080 \
-  -e UPDATE_INTERVAL=12h \
-  -e TARGET_CONTAINERS=container1,container2 \
-  -e CF_DOMAINS=example.com,example.org \
-  -e IP_COUNT=1 \
-  yourusername/cloudflare-hosts-updater:latest
+  --env-file .env \
+  neilforest/cloudflare-hosts-updater:latest
 ```
 
 ### Docker Compose
@@ -33,18 +52,15 @@ docker run -d \
 version: '3'
 services:
   cloudflare-hosts-updater:
-    image: yourusername/cloudflare-hosts-updater:latest
+    image: neilforest/cloudflare-hosts-updater:latest
     container_name: cloudflare-hosts-updater
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./data:/app/data
     ports:
       - "8080:8080"
-    environment:
-      - UPDATE_INTERVAL=12h
-      - TARGET_CONTAINERS=container1,container2
-      - CF_DOMAINS=example.com,example.org
-      - IP_COUNT=1
+    env_file:
+      - .env
     restart: unless-stopped
 ```
 

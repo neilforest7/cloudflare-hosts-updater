@@ -17,6 +17,7 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify
 from main import (
     logger, 
     CONFIG,
+    TIMEZONE,
     load_config,
     save_config,
     HOSTS_FILE, 
@@ -171,7 +172,9 @@ def get_last_update_time():
     try:
         if os.path.exists(HOSTS_FILE):
             mtime = os.path.getmtime(HOSTS_FILE)
-            return datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
+            # 使用上海时区
+            update_time = datetime.fromtimestamp(mtime, TIMEZONE)
+            return update_time.strftime('%Y-%m-%d %H:%M:%S')
         return "未知"
     except Exception:
         return "获取时间出错"

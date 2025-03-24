@@ -13,16 +13,34 @@ import logging
 import subprocess
 import schedule
 import toml
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+# 设置默认时区为Asia/Shanghai (UTC+8)
+TIMEZONE = timezone(timedelta(hours=8))
+
+# 自定义日志格式化器，使用上海时区
+class TimezoneFormatter(logging.Formatter):
+    def converter(self, timestamp):
+        dt = datetime.fromtimestamp(timestamp, TIMEZONE)
+        return dt
+    
+    def formatTime(self, record, datefmt=None):
+        dt = self.converter(record.created)
+        if datefmt:
+            return dt.strftime(datefmt)
+        else:
+            return dt.strftime('%Y-%m-%d %H:%M:%S')
 
 # 配置日志
+formatter = TimezoneFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+file_handler = logging.FileHandler('/app/data/updater.log')
+file_handler.setFormatter(formatter)
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('/app/data/updater.log')
-    ]
+    handlers=[stream_handler, file_handler]
 )
 logger = logging.getLogger('cloudflare-hosts-updater')
 
@@ -204,9 +222,36 @@ def save_config(config):
         # 重新加载配置以确保全局变量更新
         load_config()
         
+        # 重置定时任务以应用新的更新间隔
+        reset_scheduler()
+        
         return True
     except Exception as e:
         logger.error(f"保存配置失败: {str(e)}")
+        return False
+
+# 重置定时任务调度器
+def reset_scheduler():
+    """重置定时任务调度器以应用新的更新间隔"""
+    try:
+        # 清除所有现有任务
+        schedule.clear()
+        
+        # 解析更新间隔并设置新的定时任务
+        interval_seconds = parse_time_interval(CONFIG['UPDATE_INTERVAL'])
+        logger.info(f"重置定时任务，新间隔: {interval_seconds}秒")
+        
+        # 记录下一次定时任务的执行时间（使用上海时区）
+        next_run = time.time() + interval_seconds
+        next_run_time = datetime.fromtimestamp(next_run, TIMEZONE)
+        logger.info(f"下一次定时任务将在 {next_run_time.strftime('%Y-%m-%d %H:%M:%S')} 执行")
+        
+        # 设置新的定时任务
+        schedule.every(interval_seconds).seconds.do(update_all_hosts, is_scheduled=True)
+        
+        return True
+    except Exception as e:
+        logger.error(f"重置定时任务失败: {str(e)}")
         return False
 
 # 初始加载配置
@@ -367,7 +412,9 @@ def generate_hosts_content(ip_list, domains=None):
         logger.error("无可用IP")
         return ""
     
-    hosts_content = f"{HOSTS_MARKER} - 更新时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    # 使用上海时区获取当前时间
+    now = datetime.now(TIMEZONE)
+    hosts_content = f"{HOSTS_MARKER} - 更新时间: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
     
     # 检查是否有自定义模板
     template_line = "{ip} {domain} # 速度:{speed}ms"
@@ -536,8 +583,14 @@ def update_container_hosts(container_name, hosts_content):
         logger.error(f"更新容器 {container_name} 的hosts文件时出错: {str(e)}")
         return False
 
-def update_all_hosts():
+def update_all_hosts(is_scheduled=False):
     """更新所有目标容器的hosts文件"""
+    # 添加日志记录触发方式
+    if is_scheduled:
+        logger.info("定时任务触发")
+    else:
+        logger.info("非定时任务触发")
+        
     # 重新加载配置以确保使用最新配置（添加日志和时间检查以避免频繁加载）
     global TARGET_CONTAINERS, CF_DOMAINS, IP_COUNT, PREFERRED_IP, SPEED_TEST_ARGS
     
@@ -626,15 +679,20 @@ def main():
         logger.info("检测到非初次启动，使用现有配置文件")
     
     # 启动后的第一次更新
-    logger.info("执行启动后的首次计划更新")
-    update_all_hosts()
+    logger.info("执行启动后的首次hosts更新")
+    update_all_hosts(is_scheduled=False)
     
     # 解析更新间隔并设置定时任务
     interval_seconds = parse_time_interval(UPDATE_INTERVAL)
     logger.info(f"设置定时任务，间隔: {interval_seconds}秒")
     
-    # 使用schedule库设置定时任务
-    schedule.every(interval_seconds).seconds.do(update_all_hosts)
+    # 记录下一次定时任务的执行时间（使用上海时区）
+    next_run = time.time() + interval_seconds
+    next_run_time = datetime.fromtimestamp(next_run, TIMEZONE)
+    logger.info(f"下一次定时任务将在 {next_run_time.strftime('%Y-%m-%d %H:%M:%S')} 执行")
+    
+    # 使用schedule库设置定时任务，传递is_scheduled=True参数
+    schedule.every(interval_seconds).seconds.do(update_all_hosts, is_scheduled=True)
     
     # 主循环
     try:

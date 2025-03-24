@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CloudflareIP-Hosts更新器</title>
+    <title>容器Hosts修改器</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+    <header>
+        <h1>容器Hosts修改器</h1>
+        <p>最后更新时间: {{ data.last_update }}</p>
+    </header>
     <div class="container">
-        <header>
-            <h1>CloudflareIP-Hosts更新器</h1>
-            <p>最后更新时间: {{ data.last_update }}</p>
-        </header>
         
         <div class="tabs">
             <button class="tab-btn active" onclick="openTab(event, 'status')">状态</button>
@@ -23,17 +23,17 @@
         <!-- 状态选项卡 -->
         <div id="status" class="tab-content" style="display:block;">
             <div class="button-group">
-                <form action="/run_speedtest" method="post" id="speedtest-form">
-                    <button type="submit" class="btn primary">开始优选并更新</button>
-                </form>
-                <br>
-                <form action="/update_hosts" method="post" id="update-form">
-                    <button type="submit" class="btn secondary">沿用结果更新hosts</button>
-                </form>
-                <br>
+                <div class="centered-buttons">
+                    <form action="/run_speedtest" method="post" id="speedtest-form" class="inline-form">
+                        <button type="submit" class="btn primary">开始优选并更新hosts</button>
+                    </form>
+                    <form action="/update_hosts" method="post" id="update-form" class="inline-form">
+                        <button type="submit" class="btn secondary">沿用结果更新hosts</button>
+                    </form>
+                </div>
             </div>
             
-            <h2>当前IP配置</h2>
+            <h2>当前优选配置</h2>
             <div class="ip-table-container">
                 <table class="data-table">
                     <thead>
@@ -137,7 +137,7 @@
     </div>
 
     <footer>
-        <p>Made with ❤️ by <a href="https://github.com/neilforest7">neilforest</a> &copy; 2025</p>
+        <p>Made with ❤️ by pter <a href="https://github.com/neilforest7">neilforest</a> &copy; 2025</p>
     </footer>
 
     <script>

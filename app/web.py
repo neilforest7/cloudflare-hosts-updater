@@ -174,9 +174,11 @@ def get_last_update_time():
             mtime = os.path.getmtime(HOSTS_FILE)
             # 使用上海时区
             update_time = datetime.fromtimestamp(mtime, TIMEZONE)
-            return update_time.strftime('%Y-%m-%d %H:%M:%S')
+            # 确保时间显示为上海时区
+            return update_time.astimezone(TIMEZONE).strftime('%Y-%m-%d %H:%M:%S')
         return "未知"
-    except Exception:
+    except Exception as e:
+        logger.error(f"获取最后更新时间出错: {str(e)}")
         return "获取时间出错"
 
 # 更新配置

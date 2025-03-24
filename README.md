@@ -1,4 +1,6 @@
-# CloudflareIP-Hosts更新器
+# 容器hosts自动修改器
+
+![容器Hosts修改器界面](https://imgbed.neilforest.xyz/i/2025/03/24/67e0adaec6c12.png)
 
 一个轻量级工具，用于定期获取最优的Cloudflare IP地址，并自动更新Docker容器的hosts文件。
 

@@ -8,7 +8,7 @@
 </head>
 <body>
     <header>
-        <h1>容器hosts自动修改器</h1>
+        <h1>容器hosts自动修改器 <span class="version-tag">v{{ data.version }}</span></h1>
         <p>最后更新时间: {{ data.last_update }}</p>
     </header>
     <div class="container">
@@ -137,7 +137,7 @@
     </div>
 
     <footer>
-        <p>Made with ❤️ by pter <a href="https://github.com/neilforest7">neilforest</a> &copy; 2025</p>
+        <p>Made with ❤️ by pter <a href="https://github.com/neilforest7">neilforest</a> &copy; 2025 | 版本: {{ data.version }}</p>
     </footer>
 
     <script>
@@ -297,7 +297,7 @@
     </script>
     
     <style>
-        /* 弹窗样式 */
+        /* 自定义弹窗样式 */
         .custom-modal {
             position: fixed;
             top: 0;
@@ -313,39 +313,25 @@
         
         .modal-content {
             background-color: white;
-            padding: 20px;
-            border-radius: 5px;
-            text-align: center;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+            border-radius: 8px;
             max-width: 400px;
-            width: 80%;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
         }
         
         .success .modal-content {
-            border-top: 4px solid #4CAF50;
+            border-top: 5px solid #2ecc71;
         }
         
         .error .modal-content {
-            border-top: 4px solid #f44336;
+            border-top: 5px solid #e74c3c;
         }
         
-        .loading .modal-content {
-            border-top: 4px solid #2196F3;
-        }
-        
-        .modal-content p {
-            margin: 0 0 20px 0;
-            font-size: 16px;
-        }
-        
-        .modal-content .btn {
-            min-width: 100px;
-        }
-        
-        /* 加载动画 */
         .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #2196F3;
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #3498db;
             border-radius: 50%;
             width: 30px;
             height: 30px;
@@ -356,6 +342,18 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+        
+        /* 版本标签样式 */
+        .version-tag {
+            font-size: 14px;
+            color: #888;
+            font-weight: normal;
+            background-color: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 10px;
+            vertical-align: middle;
         }
     </style>
 </body>

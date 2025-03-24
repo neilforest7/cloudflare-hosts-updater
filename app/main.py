@@ -15,6 +15,8 @@ import schedule
 import toml
 from datetime import datetime, timezone, timedelta
 
+VERSION = "1.0.5"
+
 # 设置默认时区为Asia/Shanghai (UTC+8)
 TIMEZONE = timezone(timedelta(hours=8))
 

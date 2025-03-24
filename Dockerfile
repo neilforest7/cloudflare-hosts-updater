@@ -1,7 +1,9 @@
 FROM python:3.9-alpine
 
-LABEL maintainer="YourName <your.email@example.com>"
-LABEL description="CloudflareIP-Hosts更新器 - 自动选择最优Cloudflare IP并更新容器hosts"
+ARG VERSION=1.0.5
+LABEL version=$VERSION 
+LABEL maintainer="neilforest <markeloffack@gmail.com>"
+LABEL description="容器hosts自动修改器 - 自动选择最优Cloudflare IP并更新容器hosts"
 
 # 安装必要的工具
 RUN apk add --no-cache \
@@ -36,4 +38,4 @@ RUN mkdir -p /app/data \
 VOLUME ["/app/data"]
 
 # 启动命令
-CMD ["python", "/app/main.py"] 
+CMD ["python", "/app/main.py"]

@@ -18,6 +18,7 @@ from main import (
     logger, 
     CONFIG,
     TIMEZONE,
+    VERSION,
     load_config,
     save_config,
     HOSTS_FILE, 
@@ -163,7 +164,8 @@ def index():
         'logs': get_logs(),
         'current_ips': get_current_ips(),
         'containers': get_container_status(),
-        'last_update': get_last_update_time()
+        'last_update': get_last_update_time(),
+        'version': VERSION
     }
     return render_template('index.html', data=data)
 

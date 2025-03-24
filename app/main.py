@@ -33,8 +33,8 @@ ENV_FILE = './.env'
 # 默认配置
 DEFAULT_CONFIG = {
     'UPDATE_INTERVAL': '12h',
-    'TARGET_CONTAINERS': '',
-    'CF_DOMAINS': '',
+    'TARGET_CONTAINERS': 'transmission,qbittorrent,iyuuplus',
+    'CF_DOMAINS': 'audiences.me,tracker.pterclub.com,qingwapt.com',
     'IP_COUNT': 1,
     'PREFERRED_IP': '',
     'SPEED_TEST_ARGS': '',

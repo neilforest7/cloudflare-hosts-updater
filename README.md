@@ -12,26 +12,15 @@
 
 ## 快速开始
 
-### 配置文件准备
+无需预先配置任何文件，所有设置均可在Web界面完成。
 
-首先，复制示例配置文件并根据需要修改：
+首先创建一个data目录用于数据持久化：
 
 ```bash
-# 复制示例配置文件
-cp .env.example .env
-
-# 编辑配置文件
-nano .env  # 或使用您喜欢的编辑器
-```
-
-`.env`文件内容示例：
-```
-UPDATE_INTERVAL=12h
-TARGET_CONTAINERS=container1,container2
-CF_DOMAINS=example.com,example.org
-IP_COUNT=1
-PREFERRED_IP=
-SPEED_TEST_ARGS=
+# 创建data目录
+mkdir -p your_dir/data
+# 确保目录权限正确
+chmod 777 your_dir/data
 ```
 
 ### Docker部署
@@ -40,9 +29,8 @@ SPEED_TEST_ARGS=
 docker run -d \
   --name cloudflare-hosts-updater \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v $(pwd)/data:/app/data \
-  -p 8080:8080 \
-  --env-file .env \
+  -v your_dir/data:/app/data \
+  -p 18080:8080 \
   neilforest/cloudflare-hosts-updater:latest
 ```
 
@@ -58,51 +46,49 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./data:/app/data
     ports:
-      - "8080:8080"
-    env_file:
-      - .env
+      - "18080:8080"
     restart: unless-stopped
 ```
 
-## 配置选项
-
-| 环境变量 | 描述 | 默认值 |
-|----------|------|--------|
-| `UPDATE_INTERVAL` | 更新间隔（如: 12h, 30m, 1d） | `12h` |
-| `TARGET_CONTAINERS` | 目标容器名称（逗号分隔） | - |
-| `CF_DOMAINS` | 域名列表（逗号分隔） | - |
-| `IP_COUNT` | 每个域名使用的IP数量 | `1` |
-| `PREFERRED_IP` | 预设IP（设置后跳过测速） | - |
-| `SPEED_TEST_ARGS` | CloudflareST额外参数 | - |
+部署后，访问 `http://your-docker-host:18080` 进入Web管理界面，在界面中完成所有配置。
 
 ## Web界面
 
-访问 `http://your-docker-host:8080` 可进入Web管理界面：
-
-- 查看当前配置
-- 修改配置参数
+- 配置更新间隔、目标容器和域名列表
+- 设置IP数量和可选的预设IP
 - 手动触发测速和更新
 - 查看运行日志
+- 保存所有配置（自动保存到容器中）
+
+## 配置选项
+
+以下配置均可在Web界面中设置：
+
+| 配置项 | 描述 | 默认值 |
+|----------|------|--------|
+| 更新间隔 | 自动更新频率（如: 12h, 30m, 1d） | `12h` |
+| 目标容器 | 需要更新hosts的容器名称（多个用逗号分隔） | - |
+| 域名列表 | 需要解析的Cloudflare域名（多个用逗号分隔） | - |
+| IP数量 | 每个域名使用的IP数量 | `1` |
+| 预设IP | 可选的固定IP（设置后跳过测速） | - |
+| 测速参数 | CloudflareST额外参数 | - |
 
 ## 进阶用法
 
 ### 自定义hosts模板
 
-在`/app/data/template.hosts`中创建模板：
+在挂载的`data`目录中创建`template.hosts`文件：
 
 ```
 {ip} {domain} # 速度:{speed}ms
 ```
-
-### 使用预设IP
-
-设置`PREFERRED_IP`环境变量或在Web界面中配置，将绕过测速直接使用该IP。
 
 ## 故障排除
 
 - **容器无法访问Docker Socket**：确保正确挂载了`/var/run/docker.sock`
 - **测速失败**：检查网络连接或考虑使用预设IP
 - **hosts未更新**：确认容器名称正确且有文件系统权限
+- **权限问题**：确保data目录有适当的权限（chmod 777 ./data）
 
 查看日志：
 

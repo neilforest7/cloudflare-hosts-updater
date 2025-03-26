@@ -34,7 +34,7 @@
             </div>
             
             <h2>当前优选配置</h2>
-            <div class="ip-table-container">
+            <div class="ip-table-container current-config">
                 <table class="data-table">
                     <thead>
                         <tr>
@@ -51,6 +51,39 @@
                         {% else %}
                         <tr>
                             <td colspan="2">暂无IP配置</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <h2>hosts更新记录</h2>
+            <div class="ip-table-container update-history">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>更新时间</th>
+                            <th>更新类型</th>
+                            <th>优选IP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in data.update_history %}
+                        <tr>
+                            <td>{{ record.timestamp }}</td>
+                            <td>{% if record.is_scheduled %}定时执行{% else %}手动执行{% endif %}</td>
+                            <td>
+                                {% for domain, ip in record.ips.items() %}
+                                <div class="ip-entry">
+                                    <span class="domain">{{ domain }}</span>: 
+                                    <span class="ip">{{ ip }}</span>
+                                </div>
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3">暂无更新记录</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -112,6 +145,8 @@
                     <option value="200">最近200行</option>
                 </select>
             </div>
+            
+            <h3>系统日志</h3>
             <pre id="log-content" class="log-content">{{ data.logs }}</pre>
         </div>
         
@@ -297,6 +332,35 @@
     </script>
     
     <style>
+        /* 更新历史记录和当前优选配置的统一样式 */
+        .ip-table-container {
+            margin-bottom: 20px;
+            background-color: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .ip-table-container h2 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        
+        .ip-entry {
+            margin: 2px 0;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        
+        .ip-entry .domain {
+            color: #2c3e50;
+            font-weight: bold;
+        }
+        
+        .ip-entry .ip {
+            color: #3498db;
+        }
+        
         /* 自定义弹窗样式 */
         .custom-modal {
             position: fixed;

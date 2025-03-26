@@ -20,6 +20,10 @@ VERSION = "1.0.5"
 # 设置默认时区为Asia/Shanghai (UTC+8)
 TIMEZONE = timezone(timedelta(hours=8))
 
+# 文件路径
+HOSTS_FILE = '/app/data/hosts'
+UPDATE_HISTORY_FILE = os.path.join(os.path.dirname(HOSTS_FILE), 'update_history.json')
+
 # 自定义日志格式化器，使用上海时区
 class TimezoneFormatter(logging.Formatter):
     def converter(self, timestamp):
@@ -270,7 +274,6 @@ SPEED_TEST_ARGS = CONFIG['SPEED_TEST_ARGS']
 # 文件路径
 SPEEDTEST_RESULT = '/app/data/result.csv'
 HOSTS_TEMPLATE = '/app/data/template.hosts'
-HOSTS_FILE = '/app/data/hosts'
 
 def parse_time_interval(interval_str):
     """解析时间间隔字符串为秒数"""

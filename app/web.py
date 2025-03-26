@@ -21,7 +21,8 @@ from main import (
     VERSION,
     load_config,
     save_config,
-    HOSTS_FILE, 
+    HOSTS_FILE,
+    UPDATE_HISTORY_FILE,
     SPEEDTEST_RESULT,
     update_all_hosts,
     run_cloudflare_speedtest,
@@ -156,6 +157,19 @@ def get_container_status():
             })
     return containers
 
+# 获取更新历史
+def get_update_history():
+    """获取更新历史记录"""
+    try:
+        if os.path.exists(UPDATE_HISTORY_FILE):
+            with open(UPDATE_HISTORY_FILE, 'r', encoding='utf-8') as f:
+                history = json.load(f)
+            return history
+        return []
+    except Exception as e:
+        logger.error(f"读取更新历史失败: {str(e)}")
+        return []
+
 # 路由
 @app.route('/')
 def index():
@@ -165,7 +179,8 @@ def index():
         'current_ips': get_current_ips(),
         'containers': get_container_status(),
         'last_update': get_last_update_time(),
-        'version': VERSION
+        'version': VERSION,
+        'update_history': get_update_history()
     }
     return render_template('index.html', data=data)
 

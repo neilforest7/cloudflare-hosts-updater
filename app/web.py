@@ -31,7 +31,8 @@ from main import (
     save_hosts_file,
     update_container_hosts,
     HOSTS_MARKER,
-    CF_DOMAINS
+    CF_DOMAINS,
+    save_update_history
 )
 
 app = Flask(__name__)
@@ -261,6 +262,8 @@ def trigger_speedtest():
                     for container in config['TARGET_CONTAINERS']:
                         if container:
                             update_container_hosts(container, hosts_content)
+                    # 记录更新历史
+                    save_update_history(ip_list, False)  # False表示非定时任务
             return jsonify({'success': True, 'message': 'IP优选完成，并已更新hosts'})
         else:
             return jsonify({'success': False, 'message': 'IP优选失败'})
@@ -285,6 +288,8 @@ def update_hosts_only():
                 for container in config['TARGET_CONTAINERS']:
                     if container:
                         update_container_hosts(container, hosts_content)
+                # 记录更新历史
+                save_update_history(ip_list, False)  # False表示非定时任务
             return jsonify({'success': True, 'message': 'hosts文件已更新'})
         else:
             logger.error("无法从result.csv获取IP列表")

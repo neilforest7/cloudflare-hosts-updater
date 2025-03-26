@@ -588,6 +588,62 @@ def update_container_hosts(container_name, hosts_content):
         logger.error(f"更新容器 {container_name} 的hosts文件时出错: {str(e)}")
         return False
 
+def save_update_history(ip_list, is_scheduled):
+    """记录更新历史"""
+    try:
+        # 确保数据目录存在
+        os.makedirs(os.path.dirname(UPDATE_HISTORY_FILE), exist_ok=True)
+        
+        # 准备当前更新记录
+        current_time = datetime.now(TIMEZONE)
+        timestamp = current_time.strftime('%Y-%m-%d %H:%M:%S')
+        
+        # 提取IP与域名的映射
+        ips = {}
+        domains = CF_DOMAINS if isinstance(CF_DOMAINS, list) else CF_DOMAINS.split(',')
+        
+        # 获取当前IP配置
+        for i, domain in enumerate(domains):
+            if i < len(ip_list):
+                ips[domain.strip()] = ip_list[i]['ip']
+            else:
+                # 如果域名数量超过IP数量，复用最后一个IP
+                ips[domain.strip()] = ip_list[-1]['ip'] if ip_list else ""
+        
+        # 构建更新记录
+        update_record = {
+            "timestamp": timestamp,
+            "is_scheduled": is_scheduled,
+            "ips": ips
+        }
+        
+        # 读取现有历史记录
+        history = []
+        if os.path.exists(UPDATE_HISTORY_FILE):
+            try:
+                with open(UPDATE_HISTORY_FILE, 'r', encoding='utf-8') as f:
+                    history = json.load(f)
+            except json.JSONDecodeError:
+                logger.warning(f"更新历史文件损坏，将创建新文件")
+                history = []
+        
+        # 添加新记录到历史中
+        history.append(update_record)
+        
+        # 只保留最近50条记录
+        if len(history) > 50:
+            history = history[-50:]
+        
+        # 保存更新的历史
+        with open(UPDATE_HISTORY_FILE, 'w', encoding='utf-8') as f:
+            json.dump(history, f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"更新历史已记录到 {UPDATE_HISTORY_FILE}")
+        return True
+    except Exception as e:
+        logger.error(f"记录更新历史失败: {str(e)}")
+        return False
+
 def update_all_hosts(is_scheduled=False):
     """更新所有目标容器的hosts文件"""
     # 添加日志记录触发方式
@@ -670,6 +726,9 @@ def update_all_hosts(is_scheduled=False):
         logger.info(f"容器hosts更新完成: {success_count}/{len(TARGET_CONTAINERS)} 个成功")
     else:
         logger.info("未配置目标容器，跳过容器hosts更新")
+    
+    # 记录更新历史
+    save_update_history(ip_list, is_scheduled)
     
     logger.info("IP优选和hosts更新流程完成")
 

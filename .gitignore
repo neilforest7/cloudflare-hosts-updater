@@ -4,3 +4,4 @@ data/hosts.bak*
 data/result.csv
 data/updater.log
 /.env
+data/update_history.json

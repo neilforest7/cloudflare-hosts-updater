@@ -1,6 +1,6 @@
 FROM python:3.9-alpine
 
-ARG VERSION=1.0.5
+ARG VERSION=1.0.6
 LABEL version=$VERSION 
 LABEL maintainer="neilforest <markeloffack@gmail.com>"
 LABEL description="容器hosts自动修改器 - 自动选择最优Cloudflare IP并更新容器hosts"

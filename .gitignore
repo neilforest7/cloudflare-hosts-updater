@@ -5,3 +5,10 @@ data/result.csv
 data/updater.log
 /.env
 data/update_history.json
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.py[cod]
+data/*.corrupt
+data/speedtest-*/

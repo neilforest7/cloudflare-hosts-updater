@@ -1,12 +1,24 @@
-version: '3'
-
 services:
   cloudflare-hosts-updater:
     build: .
+    image: cloudflare-hosts-updater:local
     container_name: cloudflare-hosts-updater
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./data:/app/data
+      - updater-data:/app/data
     ports:
-      - "18080:8080"
+      - "${BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-18080}:8080"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      WEB_USERNAME: ${WEB_USERNAME:-admin}
+      WEB_PASSWORD: ${WEB_PASSWORD:-}
+    init: true
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+volumes:
+  updater-data:

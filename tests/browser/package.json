@@ -1,0 +1,11 @@
+{
+  "name": "cloudflare-hosts-browser-checks",
+  "private": true,
+  "scripts": {
+    "test": "node verify.cjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.11.1",
+    "playwright": "1.62.1"
+  }
+}

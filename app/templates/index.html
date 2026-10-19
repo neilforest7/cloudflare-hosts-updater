@@ -1,424 +1,685 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>容器Hosts修改器</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <header>
-        <h1>容器hosts自动修改器 <span class="version-tag">v{{ data.version }}</span></h1>
-        <p>最后更新时间: {{ data.last_update }}</p>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content="{{ csrf_token }}" />
+    <title>Cloudflare Hosts · 容器 hosts 自动更新</title>
+    <link
+      rel="icon"
+      href="{{ url_for('static', filename='favicon.svg') }}"
+      type="image/svg+xml"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  </head>
+  <body
+    data-initial-view="{{ 'config' if not config.CF_DOMAINS else 'overview' }}"
+  >
+    <a class="skip-link" href="#main">跳转到内容</a>
+    <svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <symbol id="i-overview" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect x="3" y="14" width="7" height="7" rx="1.5" />
+        <rect x="14" y="14" width="7" height="7" rx="1.5" />
+      </symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24">
+        <path d="M4 7h7m6 0h3M4 17h3m6 0h7" />
+        <circle cx="14" cy="7" r="3" />
+        <circle cx="10" cy="17" r="3" />
+      </symbol>
+      <symbol id="i-container" viewBox="0 0 24 24">
+        <path d="m12 3 9 5v8l-9 5-9-5V8zM3 8l9 5 9-5M12 13v8M7.5 5.5l9 5" />
+      </symbol>
+      <symbol id="i-activity" viewBox="0 0 24 24">
+        <path d="M3 12h4l3-8 4 16 3-8h4" />
+      </symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24">
+        <path d="M4 12h16m-6-6 6 6-6 6" />
+      </symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24">
+        <path d="m9 5 7 7-7 7" />
+      </symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24">
+        <path
+          d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"
+        />
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24">
+        <path d="m5 12 4 4L19 6" />
+      </symbol>
+      <symbol id="i-close" viewBox="0 0 24 24">
+        <path d="m6 6 12 12M6 18 18 6" />
+      </symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24">
+        <path d="M4 6h16M4 12h16M4 18h16" />
+      </symbol>
+      <symbol id="i-info" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 11v6M12 7v1" />
+      </symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24">
+        <rect x="8" y="8" width="12" height="13" rx="2" />
+        <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
+      </symbol>
+    </svg>
+    <aside class="app-sidebar" id="navigation" aria-label="工作区导航">
+      <div class="brand-row">
+        <a class="brand" href="#overview" aria-label="Cloudflare Hosts 总览"
+          ><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M5 9h15l7 7-7 7H5M5 16h14" />
+            <circle cx="5" cy="9" r="2" />
+            <circle cx="5" cy="23" r="2" /></svg
+          ><span>Cloudflare <strong>Hosts</strong></span></a
+        >
+        <button
+          class="icon-button mobile-only"
+          id="close-menu"
+          aria-label="关闭导航"
+        >
+          <svg class="icon"><use href="#i-close" /></svg>
+        </button>
+      </div>
+      <div class="workspace-name">
+        <span class="workspace-monogram" aria-hidden="true">D</span>
+        <div><strong>本机 Docker</strong><span>容器 hosts 自动更新</span></div>
+      </div>
+      <nav aria-label="主导航">
+        <button class="nav-button" data-view="overview">
+          <svg class="icon"><use href="#i-overview" /></svg>总览
+        </button>
+        <button class="nav-button" data-view="config">
+          <svg class="icon"><use href="#i-settings" /></svg>更新规则
+        </button>
+        <button class="nav-button" data-view="containers">
+          <svg class="icon"><use href="#i-container" /></svg>容器
+        </button>
+        <button class="nav-button" data-view="logs">
+          <svg class="icon"><use href="#i-activity" /></svg>活动记录
+        </button>
+      </nav>
+      <div class="sidebar-bottom">
+        <p class="connection-state" id="docker-connection">
+          <span class="status-dot" aria-hidden="true"></span
+          ><span>正在连接 Docker</span>
+        </p>
+        <a
+          href="https://github.com/neilforest7/cloudflare-hosts-updater"
+          target="_blank"
+          rel="noopener noreferrer"
+          >使用文档 <span aria-hidden="true">↗</span></a
+        ><span class="version"
+          >v{{ version }}{% if auth_enabled %} · 已启用登录{% endif %}</span
+        >
+      </div>
+    </aside>
+    <button
+      id="nav-scrim"
+      class="nav-scrim"
+      aria-label="关闭导航"
+      hidden
+    ></button>
+    <header class="topbar">
+      <div>
+        <button
+          id="open-menu"
+          class="icon-button mobile-only"
+          aria-label="打开导航"
+          aria-expanded="false"
+          aria-controls="navigation"
+        >
+          <svg class="icon"><use href="#i-menu" /></svg></button
+        ><span class="topbar-project"
+          >本机 Docker <span class="breadcrumb-slash">/</span>
+          <span id="breadcrumb">更新规则</span></span
+        >
+      </div>
+      <a
+        class="help-link"
+        aria-label="使用帮助（新窗口）"
+        href="https://github.com/neilforest7/cloudflare-hosts-updater#readme"
+        target="_blank"
+        rel="noopener noreferrer"
+        ><svg class="icon"><use href="#i-info" /></svg><span>帮助</span></a
+      >
     </header>
-    <div class="container">
-        
-        <div class="tabs">
-            <button class="tab-btn active" onclick="openTab(event, 'status')">状态</button>
-            <button class="tab-btn" onclick="openTab(event, 'config')">配置</button>
-            <button class="tab-btn" onclick="openTab(event, 'logs')">日志</button>
-            <button class="tab-btn" onclick="openTab(event, 'containers')">容器</button>
-        </div>
-        
-        <!-- 状态选项卡 -->
-        <div id="status" class="tab-content" style="display:block;">
-            <div class="button-group">
-                <div class="centered-buttons">
-                    <form action="/run_speedtest" method="post" id="speedtest-form" class="inline-form">
-                        <button type="submit" class="btn primary">开始优选并更新hosts</button>
-                    </form>
-                    <form action="/update_hosts" method="post" id="update-form" class="inline-form">
-                        <button type="submit" class="btn secondary">沿用结果更新hosts</button>
-                    </form>
-                </div>
-            </div>
-            
-            <div class="ip-table-container current-config">
-                <h2>当前优选配置</h2>
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>域名</th>
-                            <th>IP地址</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for domain, ip in data.current_ips.items() %}
-                        <tr>
-                            <td>{{ domain }}</td>
-                            <td>{{ ip }}</td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="2">暂无IP配置</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
 
-            <div class="ip-table-container update-history">
-                <h2>hosts更新记录</h2>
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>更新时间</th>
-                            <th>更新类型</th>
-                            <th>优选IP</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for record in data.update_history %}
-                        <tr>
-                            <td>{{ record.timestamp }}</td>
-                            <td>{% if record.is_scheduled %}定时执行{% else %}手动执行{% endif %}</td>
-                            <td>
-                                {% for domain, ip in record.ips.items() %}
-                                <div class="ip-entry">
-                                    <span class="domain">{{ domain }}</span>: 
-                                    <span class="ip">{{ ip }}</span>
-                                </div>
-                                {% endfor %}
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="3">暂无更新记录</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    <main class="work-sheet" id="main" tabindex="-1">
+      <div class="page-heading">
+        <div>
+          <h1 id="page-title">
+            {{ '首次设置' if not config.CF_DOMAINS else '总览' }}
+          </h1>
+          <p id="page-description">
+            选择目标容器，添加域名，即可开始自动更新。
+          </p>
+        </div>
+        <div id="overview-actions" class="heading-actions" hidden>
+          <button
+            class="button primary"
+            id="run-speedtest"
+            data-run="/run_speedtest"
+          >
+            <svg class="icon"><use href="#i-refresh" /></svg
+            ><span>立即更新</span>
+          </button>
+          <details class="action-menu" id="update-menu">
+            <summary aria-label="更多更新操作">···</summary>
+            <div class="menu-panel">
+              <button data-run="/update_hosts" id="update-hosts">
+                沿用已有 IP 更新</button
+              ><button data-navigate="config">修改更新规则</button>
             </div>
+          </details>
         </div>
-        
-        <!-- 配置选项卡 -->
-        <div id="config" class="tab-content">
-            <form action="{{ url_for('update_config') }}" method="post">
-                <div class="form-group">
-                    <label for="UPDATE_INTERVAL">更新间隔</label>
-                    <input type="text" id="UPDATE_INTERVAL" name="UPDATE_INTERVAL" value="{{ data.config.UPDATE_INTERVAL }}">
-                    <span class="hint">支持s(秒)、m(分钟)、h(小时)、d(天)</span>
+      </div>
+      <noscript
+        ><p class="inline-notice">
+          请启用 JavaScript，以便选择容器、保存配置和查看任务进度。
+        </p></noscript
+      >
+
+      <section id="view-overview" class="view" aria-label="总览" hidden>
+        <div
+          id="overview-error"
+          class="inline-error"
+          role="status"
+          hidden
+        ></div>
+        <section class="update-summary panel" aria-labelledby="update-title">
+          <div class="update-summary-heading">
+            <div class="summary-answer">
+              <span id="task-symbol" class="task-symbol" aria-hidden="true"
+                ><svg class="icon"><use href="#i-check" /></svg
+              ></span>
+              <div>
+                <h2 id="update-title">等待首次更新</h2>
+                <p id="task-detail">完成设置后即可开始。</p>
+              </div>
+            </div>
+            <button class="text-button" data-navigate="logs">
+              查看活动 <svg class="icon"><use href="#i-arrow" /></svg>
+            </button>
+          </div>
+          <div class="update-route" aria-label="更新范围">
+            <div>
+              <span class="route-label">域名</span
+              ><strong id="route-domains">—</strong
+              ><span id="route-domain-detail" class="route-detail"
+                >尚未配置</span
+              >
+            </div>
+            <svg class="route-arrow icon" aria-hidden="true">
+              <use href="#i-arrow" />
+            </svg>
+            <div>
+              <span class="route-label">IP 来源</span
+              ><strong id="route-ip">自动优选</strong
+              ><span id="route-ip-detail" class="route-detail"
+                >CloudflareSpeedTest</span
+              >
+            </div>
+            <svg class="route-arrow icon" aria-hidden="true">
+              <use href="#i-arrow" />
+            </svg>
+            <div>
+              <span class="route-label">目标容器</span
+              ><strong id="route-containers">—</strong
+              ><span id="route-container-detail" class="route-detail"
+                >尚未配置</span
+              >
+            </div>
+          </div>
+          <div class="schedule-strip">
+            <div><span>最近成功</span><time id="last-success">—</time></div>
+            <div><span>下次更新</span><time id="next-run">—</time></div>
+            <div>
+              <span id="schedule-caption">每 12 小时自动更新</span
+              ><button class="text-button" data-navigate="config">修改</button>
+            </div>
+          </div>
+          <div id="job-results" class="job-results" hidden></div>
+        </section>
+        <div class="overview-grid">
+          <section class="data-section" aria-labelledby="mapping-title">
+            <div class="section-heading">
+              <div>
+                <h2 id="mapping-title">域名映射</h2>
+                <span class="section-meta" id="mapping-count"
+                  >生成的 hosts</span
+                >
+              </div>
+              <details class="inline-disclosure">
+                <summary>查看 hosts</summary>
+                <div class="hosts-popover">
+                  <div class="popover-heading">
+                    <strong>已生成的 hosts</strong
+                    ><button
+                      class="icon-button"
+                      id="copy-hosts"
+                      aria-label="复制 hosts"
+                    >
+                      <svg class="icon"><use href="#i-copy" /></svg>
+                    </button>
+                  </div>
+                  <pre id="hosts-preview" tabindex="0">尚未生成</pre>
                 </div>
-                
-                <div class="form-group">
-                    <label for="TARGET_CONTAINERS">目标容器</label>
-                    <input type="text" id="TARGET_CONTAINERS" name="TARGET_CONTAINERS" value="{{ data.config.TARGET_CONTAINERS }}">
-                    <span class="hint">多个容器用逗号分隔</span>
-                </div>
-                
-                <div class="form-group">
-                    <label for="CF_DOMAINS">Cloudflare域名</label>
-                    <textarea id="CF_DOMAINS" name="CF_DOMAINS" rows="10" class="domain-textarea">{{ data.config.CF_DOMAINS.replace(',', '\n') }}</textarea>
-                    <span class="hint">每行输入一个域名</span>
-                </div>
-                
-                <div class="form-group">
-                    <label for="IP_COUNT">每个域名使用的IP数量</label>
-                    <input type="number" id="IP_COUNT" name="IP_COUNT" value="{{ data.config.IP_COUNT }}">
-                </div>
-                
-                <div class="form-group">
-                    <label for="PREFERRED_IP">预设首选IP</label>
-                    <input type="text" id="PREFERRED_IP" name="PREFERRED_IP" value="{{ data.config.PREFERRED_IP }}">
-                    <span class="hint">如果设置，则跳过测速</span>
-                </div>
-                
-                <div class="form-group">
-                    <label for="SPEED_TEST_ARGS">测速参数</label>
-                    <input type="text" id="SPEED_TEST_ARGS" name="SPEED_TEST_ARGS" value="{{ data.config.SPEED_TEST_ARGS }}">
-                    <span class="hint">CloudflareSpeedTest额外参数</span>
-                </div>
-                
-                <div class="form-group">
-                    <button type="submit" class="btn primary">保存配置</button>
-                </div>
-            </form>
+              </details>
+            </div>
+            <div id="mapping-body" class="mapping-list">
+              <p class="empty-row">首次更新完成后，域名与 IP 会显示在这里。</p>
+            </div>
+            <p class="section-footnote">
+              显示生成的映射；容器实际内容可在「容器」中查看。
+            </p>
+          </section>
+          <section class="data-section" aria-labelledby="targets-title">
+            <div class="section-heading">
+              <div>
+                <h2 id="targets-title">目标容器</h2>
+                <span class="section-meta" id="target-count">尚未配置</span>
+              </div>
+              <button class="text-button" data-navigate="containers">
+                查看全部 <svg class="icon"><use href="#i-arrow" /></svg>
+              </button>
+            </div>
+            <div id="target-summary" class="target-list">
+              <p class="empty-row">尚未选择目标容器。</p>
+            </div>
+            <p class="section-footnote" id="target-footnote">
+              只更新所选容器，保留原有 hosts 条目。
+            </p>
+          </section>
         </div>
-        
-        <!-- 日志选项卡 -->
-        <div id="logs" class="tab-content">
-            <div class="log-controls">
-                <button onclick="refreshLogs()" class="btn">刷新日志</button>
-                <select id="log-lines" onchange="refreshLogs()">
-                    <option value="50">最近50行</option>
-                    <option value="100">最近100行</option>
-                    <option value="200">最近200行</option>
+        <section
+          class="data-section recent-section"
+          aria-labelledby="recent-title"
+        >
+          <div class="section-heading">
+            <div>
+              <h2 id="recent-title">最近活动</h2>
+              <span id="recent-count" class="section-meta"></span>
+            </div>
+            <button class="text-button" data-navigate="logs">
+              查看全部 <svg class="icon"><use href="#i-arrow" /></svg>
+            </button>
+          </div>
+          <div id="recent-history" class="history-list">
+            <p class="empty-row">还没有执行记录。</p>
+          </div>
+        </section>
+      </section>
+
+      <section id="view-config" class="view" aria-label="更新规则" hidden>
+        <form id="config-form" novalidate>
+          <section class="settings-section">
+            <div class="settings-label">
+              <h2>目标容器</h2>
+              <p>选择要更新 hosts 的容器。</p>
+              <p class="setting-note">仅影响所选容器，不会重启容器。</p>
+            </div>
+            <div class="settings-content">
+              <div class="picker-toolbar">
+                <label class="sr-only" for="container-search">搜索容器</label
+                ><input
+                  id="container-search"
+                  type="search"
+                  placeholder="搜索容器名称"
+                  autocomplete="off"
+                /><span id="selected-count" class="muted">已选 0 个</span
+                ><button
+                  class="icon-button"
+                  type="button"
+                  id="refresh-picker"
+                  aria-label="刷新容器列表"
+                >
+                  <svg class="icon"><use href="#i-refresh" /></svg>
+                </button>
+              </div>
+              <div
+                id="picker-error"
+                class="inline-error"
+                role="status"
+                hidden
+              ></div>
+              <div id="container-picker" class="container-picker">
+                <p class="empty-row">正在读取容器…</p>
+              </div>
+              <p id="target-error" class="field-error" role="status" hidden></p>
+              <details class="manual-targets" id="manual-targets">
+                <summary>手动输入或仅导出 hosts</summary>
+                <label class="sr-only" for="TARGET_CONTAINERS"
+                  >目标容器名称</label
+                ><textarea
+                  id="TARGET_CONTAINERS"
+                  name="TARGET_CONTAINERS"
+                  rows="2"
+                  spellcheck="false"
+                  aria-describedby="target-error"
+                >
+{{ config.TARGET_CONTAINERS.replace(',', '\n') }}</textarea
+                >
+                <p class="hint">
+                  每行一个，也支持逗号分隔。容器需位于同一 Docker 环境。
+                </p>
+                <label class="checkbox-field export-option"
+                  ><input type="checkbox" id="export-only" />只生成 hosts
+                  文件，不写入容器</label
+                >
+              </details>
+            </div>
+          </section>
+          <section class="settings-section">
+            <div class="settings-label">
+              <h2>域名</h2>
+              <p>这些域名将使用同一组优选 IP。</p>
+              <p class="setting-note">填写使用 Cloudflare CDN 的域名。</p>
+            </div>
+            <div class="settings-content">
+              <label for="CF_DOMAINS">需要更新的域名</label
+              ><textarea
+                id="CF_DOMAINS"
+                name="CF_DOMAINS"
+                rows="4"
+                spellcheck="false"
+                placeholder="每行一个 Cloudflare 域名"
+                aria-describedby="domain-feedback domain-error"
+                required
+              >
+{{ config.CF_DOMAINS.replace(',', '\n') }}</textarea
+              >
+              <div class="field-caption">
+                <span id="domain-feedback" class="hint">支持换行或逗号分隔</span
+                ><span class="hint">不含协议、端口或路径</span>
+              </div>
+              <p id="domain-error" class="field-error" role="status" hidden></p>
+            </div>
+          </section>
+          <section class="settings-section schedule-settings">
+            <div class="settings-label">
+              <h2>自动更新</h2>
+              <p>按固定间隔重新优选并更新。</p>
+            </div>
+            <div class="settings-content">
+              <div class="switch-row">
+                <div>
+                  <label for="UPDATE_ENABLED">启用自动更新</label>
+                  <p id="schedule-help" class="hint">
+                    启动后及每个间隔自动执行，随时也能手动更新。
+                  </p>
+                </div>
+                <input
+                  class="switch"
+                  type="checkbox"
+                  id="UPDATE_ENABLED"
+                  name="UPDATE_ENABLED"
+                  role="switch"
+                  {%
+                  if
+                  config.UPDATE_ENABLED
+                  %}checked{%
+                  endif
+                  %}
+                />
+              </div>
+              <div class="interval-row">
+                <label for="interval-preset">更新间隔</label
+                ><select id="interval-preset">
+                  <option value="30m">每 30 分钟</option>
+                  <option value="1h">每 1 小时</option>
+                  <option value="6h">每 6 小时</option>
+                  <option value="12h">每 12 小时（推荐）</option>
+                  <option value="1d">每天</option>
+                  <option value="custom">自定义间隔</option>
                 </select>
+              </div>
+              <div id="custom-interval" class="field" hidden>
+                <label for="UPDATE_INTERVAL">自定义更新间隔</label
+                ><input
+                  id="UPDATE_INTERVAL"
+                  name="UPDATE_INTERVAL"
+                  value="{{ config.UPDATE_INTERVAL }}"
+                  aria-describedby="interval-error"
+                />
+                <p class="hint">
+                  例如 45m、2h、1d；纯数字按小时。最长 365 天。
+                </p>
+              </div>
+              <p
+                id="interval-error"
+                class="field-error"
+                role="status"
+                hidden
+              ></p>
             </div>
-            
-            <h3>系统日志</h3>
-            <pre id="log-content" class="log-content">{{ data.logs }}</pre>
-        </div>
-        
-        <!-- 容器选项卡 -->
-        <div id="containers" class="tab-content">
-            {% for container in data.containers %}
-            <div class="container-card {% if not container.exists %}not-exists{% endif %}">
-                <h3>{{ container.name }}</h3>
-                <p>状态: {% if container.exists %}存在{% else %}不存在{% endif %}</p>
-                {% if container.exists %}
-                <div class="hosts-preview">
-                    <h4>hosts文件</h4>
-                    <pre class="hosts-content">{{ container.hosts }}</pre>
+          </section>
+          <details class="advanced-options" id="advanced-options">
+            <summary>
+              <span>高级选项</span
+              ><span class="hint">固定 IP、多 IP、测速参数</span
+              ><svg class="icon"><use href="#i-chevron" /></svg>
+            </summary>
+            <div class="advanced-content">
+              <fieldset class="ip-mode">
+                <legend>IP 来源</legend>
+                <div class="radio-options">
+                  <label
+                    ><input
+                      type="radio"
+                      name="ip-mode"
+                      value="auto"
+                      {%
+                      if
+                      not
+                      config.PREFERRED_IP
+                      %}checked{%
+                      endif
+                      %}
+                    /><span
+                      >自动优选<span class="hint">按测速结果选择 IP</span></span
+                    ></label
+                  ><label
+                    ><input
+                      type="radio"
+                      name="ip-mode"
+                      value="fixed"
+                      {%
+                      if
+                      config.PREFERRED_IP
+                      %}checked{%
+                      endif
+                      %}
+                    /><span
+                      >固定 IP<span class="hint"
+                        >使用指定 IP，跳过测速</span
+                      ></span
+                    ></label
+                  >
                 </div>
-                {% else %}
-                <p class="error">{{ container.error if container.error else '容器不存在' }}</p>
-                {% endif %}
+              </fieldset>
+              <div class="advanced-grid">
+                <div class="field" id="preferred-field" hidden>
+                  <label for="PREFERRED_IP">固定 IP</label
+                  ><input
+                    id="PREFERRED_IP"
+                    name="PREFERRED_IP"
+                    value="{{ config.PREFERRED_IP }}"
+                    spellcheck="false"
+                    aria-describedby="preferred-error"
+                  />
+                  <p class="hint">支持 IPv4 或 IPv6；每个域名使用此 IP。</p>
+                  <p
+                    id="preferred-error"
+                    class="field-error"
+                    role="status"
+                    hidden
+                  ></p>
+                </div>
+                <div class="field">
+                  <label for="IP_COUNT">每个域名的 IP 数量</label
+                  ><input
+                    id="IP_COUNT"
+                    name="IP_COUNT"
+                    type="number"
+                    min="1"
+                    max="20"
+                    value="{{ config.IP_COUNT }}"
+                    aria-describedby="count-error"
+                  />
+                  <p class="hint">自动优选时保留前几个有效 IP，最多 20 个。</p>
+                  <p
+                    id="count-error"
+                    class="field-error"
+                    role="status"
+                    hidden
+                  ></p>
+                </div>
+                <div class="field">
+                  <label for="SPEED_TEST_TIMEOUT">测速超时（秒）</label
+                  ><input
+                    id="SPEED_TEST_TIMEOUT"
+                    name="SPEED_TEST_TIMEOUT"
+                    type="number"
+                    min="1"
+                    max="86400"
+                    value="{{ config.SPEED_TEST_TIMEOUT }}"
+                    aria-describedby="timeout-error"
+                  />
+                  <p class="hint">超时或没有有效结果时，保留已有 hosts。</p>
+                  <p
+                    id="timeout-error"
+                    class="field-error"
+                    role="status"
+                    hidden
+                  ></p>
+                </div>
+                <div class="field full-width">
+                  <label for="SPEED_TEST_ARGS">测速参数</label
+                  ><input
+                    id="SPEED_TEST_ARGS"
+                    name="SPEED_TEST_ARGS"
+                    value="{{ config.SPEED_TEST_ARGS }}"
+                    spellcheck="false"
+                    aria-describedby="args-error"
+                  />
+                  <p class="hint">
+                    CloudflareSpeedTest 附加参数。不支持
+                    -o，结果路径由程序管理。
+                  </p>
+                  <p
+                    id="args-error"
+                    class="field-error"
+                    role="status"
+                    hidden
+                  ></p>
+                </div>
+              </div>
             </div>
-            {% else %}
-            <p>没有配置目标容器</p>
-            {% endfor %}
+          </details>
+          <div class="config-footer">
+            <div>
+              <p id="scope-preview">选择容器并填写域名</p>
+              <span id="save-state" class="hint">配置保存在本机数据目录</span>
+            </div>
+            <div class="form-actions">
+              <button
+                class="button secondary"
+                type="submit"
+                name="action"
+                value="save"
+              >
+                仅保存</button
+              ><button
+                class="button primary"
+                type="submit"
+                name="action"
+                value="run"
+                id="save-and-run"
+              >
+                保存并更新 <svg class="icon"><use href="#i-arrow" /></svg>
+              </button>
+            </div>
+          </div>
+          <p id="config-error" class="field-error" role="status" hidden></p>
+        </form>
+      </section>
+
+      <section id="view-containers" class="view" aria-label="容器" hidden>
+        <div class="section-toolbar">
+          <p id="container-view-summary" class="muted">
+            所选容器的状态与实际 hosts。
+          </p>
+          <button class="button secondary" id="refresh-containers">
+            <svg class="icon"><use href="#i-refresh" /></svg>刷新
+          </button>
         </div>
+        <div
+          id="container-error"
+          class="inline-error"
+          role="status"
+          hidden
+        ></div>
+        <div id="container-list" class="container-details">
+          <p class="empty-row">正在读取容器…</p>
+        </div>
+      </section>
+      <section id="view-logs" class="view" aria-label="活动记录" hidden>
+        <div class="activity-tabs" role="group" aria-label="活动类型">
+          <button
+            class="activity-tab active"
+            data-activity="history"
+            aria-pressed="true"
+          >
+            执行记录 <span id="history-count"></span></button
+          ><button
+            class="activity-tab"
+            data-activity="logs"
+            aria-pressed="false"
+          >
+            运行日志
+          </button>
+        </div>
+        <div id="activity-history">
+          <div class="section-toolbar">
+            <p class="muted">最近 50 次更新，包括启动、定时与手动执行。</p>
+          </div>
+          <div id="history-body" class="history-list">
+            <p class="empty-row">还没有执行记录。</p>
+          </div>
+        </div>
+        <div id="activity-logs" hidden>
+          <div class="section-toolbar">
+            <p class="muted">日志自动轮转保存，时间包含时区。</p>
+            <div class="log-controls">
+              <label class="sr-only" for="log-lines">日志行数</label
+              ><select id="log-lines">
+                <option value="100">最近 100 行</option>
+                <option value="200">最近 200 行</option>
+                <option value="1000">最近 1000 行</option></select
+              ><button class="button secondary" id="refresh-logs">
+                <svg class="icon"><use href="#i-refresh" /></svg>刷新
+              </button>
+            </div>
+          </div>
+          <div id="log-error" class="inline-error" role="status" hidden></div>
+          <pre id="log-content" class="log-content" tabindex="0">
+正在读取日志…</pre
+          >
+        </div>
+      </section>
+    </main>
+    <div id="notice" class="toast" role="status" aria-live="polite" hidden>
+      <span id="notice-message"></span
+      ><button class="icon-button" id="dismiss-notice" aria-label="关闭提示">
+        <svg class="icon"><use href="#i-close" /></svg>
+      </button>
     </div>
-
-    <footer>
-        <p>Made with ❤️ by pter <a href="https://github.com/neilforest7">neilforest</a> &copy; 2025 | 版本: {{ data.version }}</p>
-    </footer>
-
-    <script>
-        // 选项卡功能
-        function openTab(evt, tabName) {
-            var i, tabContent, tabBtns;
-            
-            // 隐藏所有选项卡内容
-            tabContent = document.getElementsByClassName("tab-content");
-            for (i = 0; i < tabContent.length; i++) {
-                tabContent[i].style.display = "none";
-            }
-            
-            // 删除所有按钮的活动标记
-            tabBtns = document.getElementsByClassName("tab-btn");
-            for (i = 0; i < tabBtns.length; i++) {
-                tabBtns[i].className = tabBtns[i].className.replace(" active", "");
-            }
-            
-            // 显示当前选项卡内容并添加活动标记到按钮
-            document.getElementById(tabName).style.display = "block";
-            evt.currentTarget.className += " active";
-        }
-
-        // 异步刷新日志
-        function refreshLogs() {
-            var lines = document.getElementById('log-lines').value;
-            fetch('/api/logs?lines=' + lines)
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('log-content').textContent = data.logs;
-                })
-                .catch(error => {
-                    console.error('刷新日志出错:', error);
-                });
-        }
-
-        // 显示自定义弹窗
-        function showMessage(message, isSuccess = true, isLoading = false) {
-            // 创建弹窗元素
-            var modal = document.createElement('div');
-            modal.className = 'custom-modal ' + (isSuccess ? 'success' : 'error');
-            if (isLoading) {
-                modal.className += ' loading';
-            }
-            
-            var modalContent = document.createElement('div');
-            modalContent.className = 'modal-content';
-            
-            var messageText = document.createElement('p');
-            messageText.textContent = message;
-            
-            modalContent.appendChild(messageText);
-            
-            // 只有非加载状态才显示确定按钮
-            if (!isLoading) {
-                var closeBtn = document.createElement('button');
-                closeBtn.className = 'btn';
-                closeBtn.textContent = '确定';
-                closeBtn.onclick = function() {
-                    document.body.removeChild(modal);
-                    window.location.reload(); // 关闭弹窗后刷新页面
-                };
-                modalContent.appendChild(closeBtn);
-            } else {
-                // 添加加载指示器
-                var loader = document.createElement('div');
-                loader.className = 'loader';
-                modalContent.appendChild(loader);
-            }
-            
-            modal.appendChild(modalContent);
-            document.body.appendChild(modal);
-            
-            return modal; // 返回弹窗元素，方便后续操作
-        }
-
-        // 异步表单提交 - 测速
-        document.getElementById('speedtest-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            // 显示加载中提示
-            var loadingModal = showMessage('测速中，请稍候...', true, true);
-            
-            fetch(this.action, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                // 移除之前的弹窗
-                document.body.removeChild(loadingModal);
-                
-                // 显示结果弹窗
-                showMessage(data.message, data.success);
-            })
-            .catch(error => {
-                console.error('测速请求出错:', error);
-                // 移除之前的弹窗
-                document.body.removeChild(loadingModal);
-                showMessage('测速请求出错', false);
-            });
-        });
-
-        // 异步表单提交 - 更新hosts
-        document.getElementById('update-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            // 显示加载中提示
-            var loadingModal = showMessage('更新中，请稍候...', true, true);
-            
-            fetch(this.action, {
-                method: 'POST'
-            })
-            .then(response => {
-                if (response.ok) {
-                    return response.json();
-                } else {
-                    return response.text().then(text => {
-                        throw new Error(text || '更新失败');
-                    });
-                }
-            })
-            .then(data => {
-                // 移除之前的弹窗
-                document.body.removeChild(loadingModal);
-                // 显示结果弹窗
-                showMessage(data.message, data.success);
-            })
-            .catch(error => {
-                console.error('更新请求出错:', error);
-                // 移除之前的弹窗
-                document.body.removeChild(loadingModal);
-                showMessage(error.message || '更新请求出错', false);
-            });
-        });
-
-        // 在提交表单前处理域名文本框
-        document.querySelector('form[action="/update_config"]').addEventListener('submit', function(e) {
-            var domainsTextarea = document.getElementById('CF_DOMAINS');
-            var domainsText = domainsTextarea.value;
-            
-            // 将每行转换为逗号分隔的格式
-            var domains = domainsText.trim().split('\n').map(function(domain) {
-                return domain.trim();
-            }).filter(function(domain) {
-                return domain.length > 0;
-            });
-            
-            domainsTextarea.value = domains.join(',');
-        });
-
-        // 自动刷新日志
-        setInterval(refreshLogs, 30000); // 每30秒刷新一次
+    <script type="application/json" id="initial-config">
+      {{ config|tojson }}
     </script>
-    
-    <style>
-        /* 更新历史记录和当前优选配置的统一样式 */
-        .ip-table-container {
-            margin-bottom: 20px;
-            background-color: white;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        
-        .ip-table-container h2 {
-            margin-bottom: 15px;
-            color: #2c3e50;
-        }
-        
-        .ip-entry {
-            margin: 2px 0;
-            font-family: monospace;
-            font-size: 13px;
-        }
-        
-        .ip-entry .domain {
-            color: #2c3e50;
-            font-weight: bold;
-        }
-        
-        .ip-entry .ip {
-            color: #3498db;
-        }
-        
-        /* 自定义弹窗样式 */
-        .custom-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        
-        .modal-content {
-            background-color: white;
-            padding: 30px;
-            border-radius: 8px;
-            max-width: 400px;
-            width: 100%;
-            text-align: center;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-        }
-        
-        .success .modal-content {
-            border-top: 5px solid #2ecc71;
-        }
-        
-        .error .modal-content {
-            border-top: 5px solid #e74c3c;
-        }
-        
-        .loader {
-            border: 8px solid #f3f3f3;
-            border-top: 8px solid #3498db;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 2s linear infinite;
-            margin: 0 auto;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        /* 版本标签样式 */
-        .version-tag {
-            font-size: 14px;
-            color: #888;
-            font-weight: normal;
-            background-color: #f0f0f0;
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin-left: 10px;
-            vertical-align: middle;
-        }
-    </style>
-</body>
-</html> 
+  </body>
+</html>

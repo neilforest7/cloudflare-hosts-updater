@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - updater-data:/app/data
+      - ./data:/app/data
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-18080}:8080"
     environment:
@@ -19,6 +19,3 @@ services:
       options:
         max-size: "5m"
         max-file: "3"
-
-volumes:
-  updater-data:

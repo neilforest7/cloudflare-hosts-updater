@@ -6,15 +6,17 @@
 
 ## 快速开始
 
-需要 Docker 和 Docker Compose。应用会访问同一 Docker 环境中的目标容器。
+需要 Docker、Docker Compose、curl 和 tar。应用会访问同一 Docker 环境中的目标容器。
 
 ```bash
-git clone https://github.com/neilforest7/cloudflare-hosts-updater.git
+mkdir -p cloudflare-hosts-updater
 cd cloudflare-hosts-updater
+curl -fsSL https://github.com/neilforest7/cloudflare-hosts-updater/archive/refs/heads/main.tar.gz \
+  | tar -xz --strip-components=1
 docker compose up -d --build
 ```
 
-打开 [http://127.0.0.1:18080](http://127.0.0.1:18080)。Compose 从源码构建镜像，适用于 amd64 和 arm64。amd64 也可直接使用 Docker Hub 的 [`1.1.0` 镜像](https://hub.docker.com/r/neilforest/cloudflare-hosts-updater/tags)。
+这会下载源码压缩包并构建本地镜像，无需安装 Git。打开 [http://127.0.0.1:18080](http://127.0.0.1:18080)。Compose 构建适用于 amd64 和 arm64；amd64 也可直接使用 Docker Hub 的 [`1.1.0` 镜像](https://hub.docker.com/r/neilforest/cloudflare-hosts-updater/tags)。
 
 ## 首次使用
 

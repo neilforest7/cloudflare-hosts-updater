@@ -8,3 +8,4 @@ tests
 docs
 *.log
 .env
+.taste-skill

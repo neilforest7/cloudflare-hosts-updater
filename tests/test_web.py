@@ -74,7 +74,14 @@ def test_async_jobs_remain_observable_and_overlap_returns_conflict(web):
 def test_authentication_protects_reads_and_writes(tmp_path):
     app = create_app(UpdaterService(tmp_path), username="owner", password="secret")
     client = app.test_client()
-    for path in ("/", "/api/config", "/api/logs", "/api/status", "/api/hosts"):
+    for path in (
+        "/",
+        "/api/config",
+        "/api/logs",
+        "/api/status",
+        "/api/hosts",
+        "/api/containers/available",
+    ):
         assert client.get(path).status_code == 401
     assert client.get("/healthz").status_code == 200
     auth = "Basic " + base64.b64encode(b"owner:secret").decode()
@@ -87,3 +94,34 @@ def test_logs_limits_and_multi_ip_artifact(web):
     assert len(client.get("/api/logs?lines=999999").json["logs"].splitlines()) == 1000
     assert len(client.get("/api/logs?lines=-1").json["logs"].splitlines()) == 1
     assert client.get("/api/logs?lines=invalid").status_code == 200
+
+
+def test_container_discovery_does_not_read_or_modify_hosts(web, monkeypatch):
+    service, client, _ = web
+    available = [{"name": "media", "image": "media:latest", "state": "running", "id": "123"}]
+    monkeypatch.setattr(service.docker, "available_containers", lambda: available, raising=False)
+    response = client.get("/api/containers/available")
+    assert response.status_code == 200
+    assert response.json == {"available": True, "containers": available}
+    assert not service.docker.writes
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        FileNotFoundError("missing docker"),
+        RuntimeError("connection denied"),
+        ValueError("invalid output"),
+    ],
+)
+def test_discovery_failure_has_actionable_message(web, monkeypatch, error):
+    service, client, _ = web
+
+    def fail():
+        raise error
+
+    monkeypatch.setattr(service.docker, "available_containers", fail, raising=False)
+    response = client.get("/api/containers/available")
+    assert response.status_code == 503
+    assert response.json["available"] is False
+    assert "手动填写" in response.json["error"]

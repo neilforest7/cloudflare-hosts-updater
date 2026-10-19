@@ -1,7 +1,11 @@
 name: Checks
 on:
   push:
+    branches: [main]
   pull_request:
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -34,3 +38,29 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: python -m venv .venv && .venv/bin/pip install -r requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: tests/browser/package-lock.json
+      - run: npm ci --prefix tests/browser
+      - run: tests/browser/node_modules/.bin/playwright install --with-deps chromium
+      - run: npm test --prefix tests/browser
+        env:
+          RUN_DOCKER_TESTS: "1"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-checks
+          path: .taste-skill/browser
+          include-hidden-files: true

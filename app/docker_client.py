@@ -21,6 +21,21 @@ exit 1
 
 
 class DockerClient:
+    def available_containers(self) -> list[dict]:
+        output = self._run("container", "ls", "--all", "--format", "{{json .}}")
+        containers = []
+        for line in output.splitlines():
+            item = json.loads(line)
+            containers.append(
+                {
+                    "name": item["Names"],
+                    "image": item["Image"],
+                    "state": item["State"],
+                    "id": item["ID"],
+                }
+            )
+        return sorted(containers, key=lambda item: (item["state"] != "running", item["name"]))
+
     def _run(self, *args, content=None):
         result = subprocess.run(
             ["docker", *args],

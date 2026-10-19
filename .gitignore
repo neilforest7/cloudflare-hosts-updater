@@ -12,3 +12,5 @@ __pycache__/
 *.py[cod]
 data/*.corrupt
 data/speedtest-*/
+.taste-skill/
+tests/browser/node_modules/

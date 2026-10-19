@@ -35,6 +35,8 @@ def test_real_container_migration_idempotence_and_failure_reporting(tmp_path, mo
     )
     try:
         client = DockerClient()
+        discovered = {item["name"]: item for item in client.available_containers()}
+        assert discovered[name]["state"] == "running"
         original = client.read_hosts(name)
         legacy = render_hosts([{"ip": "8.8.8.8", "speed": "5"}], ("old.test",), "", "old")
         seeded = legacy + original + "10.20.30.40 preserve.test\n"

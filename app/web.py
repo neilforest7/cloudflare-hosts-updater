@@ -3,6 +3,7 @@
 import hmac
 import os
 import secrets
+import subprocess
 from collections import deque
 
 from flask import Flask, jsonify, render_template, request, session
@@ -109,6 +110,17 @@ def create_app(service, *, password=None, username=None):
                 service.docker.status(name) for name in service.store.get().target_containers
             ]
         )
+
+    @app.get("/api/containers/available")
+    def available_containers():
+        try:
+            return jsonify(containers=service.docker.available_containers(), available=True)
+        except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired):
+            return jsonify(
+                available=False,
+                containers=[],
+                error="暂时无法读取容器，请检查 Docker 是否运行及 Socket 是否挂载。也可以手动填写容器名称。",
+            ), 503
 
     @app.get("/api/hosts")
     def hosts():

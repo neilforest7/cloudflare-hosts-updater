@@ -1,3 +1,4 @@
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -28,7 +29,7 @@ def test_unusable_csv(tmp_path, csv):
 
 def test_success_without_new_output_never_reuses_stale_csv(tmp_path, monkeypatch):
     tester = SpeedTester(tmp_path)
-    tester.binary = "/bin/true"
+    tester.binary = shutil.which("true")
     tester.result_path.write_text("IP 地址,平均延迟\n1.1.1.1,10\n")
     previous = tester.result_path.read_bytes()
     with pytest.raises(ValueError, match="没有生成结果"):
@@ -38,7 +39,7 @@ def test_success_without_new_output_never_reuses_stale_csv(tmp_path, monkeypatch
 
 def test_timeout_keeps_cache_and_cleans_temporary_directory(tmp_path, monkeypatch):
     tester = SpeedTester(tmp_path)
-    tester.binary = "/bin/true"
+    tester.binary = shutil.which("true")
     tester.result_path.write_text("old cache")
 
     def timeout(command, **kwargs):
@@ -54,7 +55,7 @@ def test_timeout_keeps_cache_and_cleans_temporary_directory(tmp_path, monkeypatc
 
 def test_success_publishes_only_valid_new_results(tmp_path, monkeypatch):
     tester = SpeedTester(tmp_path)
-    tester.binary = "/bin/true"
+    tester.binary = shutil.which("true")
 
     def run(command, **kwargs):
         assert "shell" not in kwargs
